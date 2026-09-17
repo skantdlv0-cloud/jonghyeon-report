@@ -1,0 +1,151 @@
+/* ============================================================
+   report.js — 레포트 HTML 만들기
+
+   template/report-template.html 을 그대로 읽어 플레이스홀더만 채운다.
+   레포트 형식이 한 군데에만 있어야 하므로 여기서 HTML 을 새로 짜지 않는다.
+
+   미리보기(B단계)와 발행(D단계)이 같은 함수를 쓴다.
+   ============================================================ */
+
+(function (global) {
+  'use strict';
+
+  var SITE_URL = global.CONFIG.siteUrl;
+
+  /* 템플릿 설명 주석 — 치환 전에 반드시 먼저 지운다.
+     안 지우면 주석 안 예시 자리에도 값이 들어간다. */
+  var DOC_COMMENT = /<!-- =+\r?\n\s+치환 플레이스홀더[\s\S]*?=+ -->\r?\n\r?\n/;
+
+  var templateCache = null;
+
+  function loadTemplate() {
+    if (templateCache) return Promise.resolve(templateCache);
+    return fetch('../template/report-template.html', { cache: 'no-cache' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('템플릿을 불러오지 못했습니다 (HTTP ' + r.status + ')');
+        return r.text();
+      })
+      .then(function (text) {
+        if (!DOC_COMMENT.test(text)) {
+          throw new Error('템플릿에서 설명 주석 블록을 찾지 못했습니다.');
+        }
+        templateCache = text.replace(DOC_COMMENT, '');
+        return templateCache;
+      });
+  }
+
+  /* 랜덤 4자 — 이름만으로 남의 레포트를 추측해 여는 것을 막는다 */
+  function randomSuffix() {
+    var chars = 'abcdefghijkmnpqrstuvwxyz23456789';   /* 헷갈리는 l,o,0,1 제외 */
+    var a = new Uint8Array(4);
+    crypto.getRandomValues(a);
+    var out = '';
+    for (var i = 0; i < 4; i++) out += chars[a[i] % chars.length];
+    return out;
+  }
+
+  /* /r/2026/0601-haneul-a7f3.html */
+  function buildPath(student, startDate, suffix) {
+    var year = String(startDate).slice(0, 4);
+    return '/r/' + year + '/' + Store.mmdd(startDate) + '-' +
+           (student.slug || 'student') + '-' + (suffix || randomSuffix()) + '.html';
+  }
+
+  /* JSON 안의 '<' 를 막지 않으면 코멘트에 </script> 가 들어갔을 때 페이지가 깨진다 */
+  function safeJson(obj) {
+    return JSON.stringify(obj, null, 2).replace(/</g, '\\u003C');
+  }
+
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + '.' +
+           String(d.getMonth() + 1).padStart(2, '0') + '.' +
+           String(d.getDate()).padStart(2, '0');
+  }
+
+  /* 레포트 HTML 한 편을 만든다.
+     opts.cssHref · opts.brandHref 를 주면 파일 경로를 절대주소로 바꾼다.
+     미리보기는 srcdoc 안에서 열리므로 상대 경로가 통하지 않는다. */
+  function buildHtml(tpl, data, reportPath, opts) {
+    opts = opts || {};
+
+    var B = global.BRAND || {};
+    var period = Store.shortDate(data.startDate) + '~' + Store.shortDate(data.endDate);
+    var out = tpl;
+
+    if (opts.cssHref) {
+      out = out.replace('../../assets/report.css', opts.cssHref);
+    }
+    if (opts.brandHref) {
+      out = out.replace('../../assets/brand.js', opts.brandHref);
+    }
+
+    /* 카톡 미리보기용 — 크롤러가 자바스크립트를 안 읽어서 글자로 박는다 */
+    out = out.split('{{OG_EMOJI}}').join(B.ogEmoji || '📘');
+    out = out.split('{{REPORT_BRAND}}').join(B.reportBrand || '김종현 국어');
+    out = out.split('{{REPORT_TITLE}}').join(B.reportTitle || '김종현 국어 주간 학습 레포트');
+
+    out = out.split('{{SITE_URL}}').join(SITE_URL);
+    out = out.split('{{REPORT_PATH}}').join(reportPath);
+    out = out.split('{{STUDENT_NAME}}').join(data.studentName || '');
+    out = out.split('{{PERIOD_SHORT}}').join(period);
+    out = out.split('{{PUBLISH_DATE}}').join(opts.publishDate || todayISO());
+    out = out.split('{{REPORT_DATA}}').join(safeJson(data));
+
+    return out;
+  }
+
+  /* 작성 탭의 입력값 → 레포트 데이터(지시서 2-3 스키마) */
+  function toReportData(student, common, entry, week) {
+    var tests = (common.tests || [])
+      .map(function (name, i) {
+        var raw = entry.scores ? entry.scores[i] : '';
+        if (name == null || !String(name).trim()) return null;
+        return { name: String(name).trim(), score: clampPct(raw) };
+      })
+      .filter(Boolean);
+
+    return {
+      school: student.school || '',
+      grade: student.grade || '',
+      studentName: student.name || '',
+      startDate: week.start,
+      endDate: week.end,
+      attendance: {
+        status: entry.attendStatus || '',
+        note: (entry.attendNote || '').trim()
+      },
+      lessons: (common.lessons || []).filter(function (l) { return String(l || '').trim(); }),
+      focusScore: Number(entry.focusScore) || 0,
+      tests: tests,
+      homework: entry.homework || {},
+      submitRate: submitRateOf(entry.homework),
+      onTimeRate: clampPct(entry.onTimeRate == null ? 100 : entry.onTimeRate),
+      comment: (entry.comment || '').trim()
+    };
+  }
+
+  function clampPct(v) {
+    var n = Math.round(Number(v) || 0);
+    return n < 0 ? 0 : n > 100 ? 100 : n;
+  }
+
+  /* 요일 체크에서 제출률을 자동 계산한다 (3개 체크 → 60%) */
+  function submitRateOf(hw) {
+    var days = ['월', '화', '수', '목', '금'];
+    var done = days.filter(function (d) { return hw && hw[d]; }).length;
+    return Math.round(done / days.length * 100);
+  }
+
+  global.Report = {
+    SITE_URL: SITE_URL,
+    loadTemplate: loadTemplate,
+    buildHtml: buildHtml,
+    buildPath: buildPath,
+    randomSuffix: randomSuffix,
+    toReportData: toReportData,
+    submitRateOf: submitRateOf,
+    todayISO: todayISO
+  };
+
+})(window);

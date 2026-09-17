@@ -1,0 +1,22 @@
+# 김종현 국어 주간 학습 레포트
+# 학부모 상담 내용이 검색에 노출되지 않도록 레포트 경로를 차단한다.
+#
+# 주의: robots.txt 는 도메인 루트에서만 읽힌다.
+# 현재 GitHub Pages 프로젝트 페이지(.../jonghyeon-report/robots.txt)에서는
+# 크롤러가 이 파일을 읽지 않으므로 효력이 없다.
+# 실제 검색 노출을 막는 것은 각 레포트 <head> 의 noindex 메타 태그다.
+# 개인 도메인을 연결하면 이 파일이 그때부터 정상 동작한다.
+
+User-agent: *
+Disallow: /r/
+
+# 카카오톡·문자 미리보기 크롤러는 차단하지 않는다.
+# (링크를 보낼 때 썸네일이 떠야 하므로)
+User-agent: kakaotalk-scrap
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /

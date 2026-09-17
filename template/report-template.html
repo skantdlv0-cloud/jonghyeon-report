@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{STUDENT_NAME}} 학생 · {{PERIOD_SHORT}} 레포트</title>
+
+<!-- ============================================================
+     치환 플레이스홀더 (생성기가 채운다)
+       {{SITE_URL}}      https://skantdlv0-cloud.github.io/jonghyeon-report   (끝에 / 없음)
+       {{REPORT_PATH}}   /r/2026/0601-haneul-9c4d.html
+                         형식: /r/{연도}/{월일}-{이름로마자}-{랜덤4자}.html
+                         랜덤 4자를 반드시 붙인다. 이름만으로 다른 학생의
+                         레포트를 추측해 여는 것을 막기 위함이다.
+       {{STUDENT_NAME}}  김하늘
+       {{PERIOD_SHORT}}  6/1~6/5   (카톡 제목용 짧은 기간. 월/일만, 앞자리 0 없이)
+       {{PUBLISH_DATE}}  2026.06.06
+       {{REPORT_DATA}}   지시서 2-3 스키마의 JSON
+
+       아래 셋은 assets/brand.js 에서 온다.
+       카카오톡 크롤러가 자바스크립트를 읽지 못해 여기만 글자로 박는다.
+       brand.js 를 고치면 그 뒤에 발행하는 레포트부터 바뀐다.
+       {{OG_EMOJI}}      📘        (카톡 제목 맨 앞)
+       {{REPORT_BRAND}}  김종현 국어
+       {{REPORT_TITLE}}  김종현 국어 주간 학습 레포트
+
+       푸터(서명·학원명·문의 번호)는 치환하지 않는다.
+       brand.js 가 화면에서 채우므로 이미 발행한 레포트까지 함께 바뀐다.
+
+     출결 스키마 (지시서 2-3 에서 변경됨)
+       주 1회 수업이므로 횟수를 세지 않고 상태 하나만 쓴다.
+         "attendance": { "status": "attend", "note": "" }
+       status 는 attend | late | absent | makeup 넷 중 하나.
+       한글("출석"/"지각"/"결석"/"보강")로 저장해도 동작한다.
+       note 는 선택이며 지각·보강일 때 짧게 적는다. (예: "10분 지각", "9/12 보강")
+       입력 폼에서는 숫자 칸이 아니라 버튼 네 개 중 하나를 누르는 방식으로 만든다.
+
+     주의 1. OG 태그는 반드시 정적 텍스트여야 한다.
+             자바스크립트로 넣으면 카카오톡 크롤러가 읽지 못한다.
+     주의 2. {{REPORT_DATA}} 를 채울 때 JSON 안의 '<' 문자는 모두
+             백슬래시 + u003C 형태로 이스케이프한다.
+             코멘트에 '(/script)' 같은 문자열이 들어가면 script 태그가 조기에 닫혀
+             페이지가 깨진다.
+     주의 3. 치환은 이 주석 블록을 먼저 제거한 뒤에 한다.
+             그러지 않으면 여기 적힌 예시 자리에도 값이 들어간다.
+     ============================================================ -->
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{OG_EMOJI}} {{STUDENT_NAME}} 학생 · {{PERIOD_SHORT}} 레포트">
+<meta property="og:description" content="이번 주 수업 기록과 선생님 코멘트를 확인해 보세요">
+<meta property="og:image" content="{{SITE_URL}}/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{REPORT_TITLE}}">
+<meta property="og:url" content="{{SITE_URL}}{{REPORT_PATH}}">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:site_name" content="{{REPORT_BRAND}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{OG_EMOJI}} {{STUDENT_NAME}} 학생 · {{PERIOD_SHORT}} 레포트">
+<meta name="twitter:description" content="이번 주 수업 기록과 선생님 코멘트를 확인해 보세요">
+<meta name="twitter:image" content="{{SITE_URL}}/assets/og-cover.png">
+
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#E8E6F8">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Nanum+Pen+Script&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../assets/report.css">
+<script src="../../assets/brand.js"></script>
+</head>
+<body>
+
+<!-- 브랜드 그라데이션 — 원형 게이지와 출결 도형이 함께 쓴다 -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#9480D6"/>
+      <stop offset="100%" stop-color="#3D4A8C"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="container">
+
+  <!-- 헤더 + 본문 : 아래 JSON 을 읽어 렌더링한다 -->
+  <div id="report-body">
+    <div class="empty">레포트를 불러오는 중입니다…</div>
+  </div>
+
+  <!-- 푸터 : 정적 -->
+  <footer class="footer">
+    <div class="footer-sign">
+      <span class="footer-heart" data-brand="signEmoji">✒️</span>
+      <span data-brand="signName">김종현 드림</span>
+    </div>
+    <div class="footer-sub" data-brand="footerThanks">이번주도 함께해주셔서 감사합니다</div>
+    <div class="footer-brand" data-brand="brandName">MARATHON STUDY</div>
+    <div class="footer-contact">
+      문의 · <span data-brand="contactName">김종현 선생님</span>
+      <a data-brand-tel href="tel:01072009055">010-7200-9055</a>
+    </div>
+    <div class="footer-date num">발행일 {{PUBLISH_DATE}}</div>
+  </footer>
+
+</div>
+
+<script type="application/json" id="report-data">{{REPORT_DATA}}</script>
+
+<script>
+(function (global) {
+  'use strict';
+
+  var DAYS = ['월', '화', '수', '목', '금'];
+  var root = document.getElementById('report-body');
+
+  /* 선생님 표기·학원명·연락처는 ../../assets/brand.js 한 곳에 있다.
+     그 파일을 못 불러왔을 때를 대비해 기본값을 둔다. */
+  var B = global.BRAND || {
+    reportBrand:  '김종현 국어',
+    commentTitle: '김종현 종합 코멘트'
+  };
+
+  /* ---------- 유틸 ---------- */
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function pct(v) {
+    var n = Math.round(Number(v) || 0);
+    return n < 0 ? 0 : n > 100 ? 100 : n;
+  }
+
+  function intOf(v) {
+    var n = Math.round(Number(v) || 0);
+    return n < 0 ? 0 : n;
+  }
+
+  /* 2026-06-01 → '2026.06.01' */
+  function formatDate(d) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '').trim());
+    return m ? m[1] + '.' + m[2] + '.' + m[3] : '';
+  }
+
+  /* 양쪽 모두 연도를 쓴다 → 2026.06.01 ~ 2026.06.05 */
+  function formatPeriod(start, end) {
+    var s = formatDate(start), e = formatDate(end);
+    if (s && e) return s + ' ~ ' + e;
+    return s || e || '';
+  }
+
+  /* 2026-06-01 → '6/1'  (탭 제목·카톡 제목용 짧은 형식) */
+  function shortDate(d) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '').trim());
+    return m ? Number(m[2]) + '/' + Number(m[3]) : '';
+  }
+
+  /* → '6/1~6/5' */
+  function shortPeriod(start, end) {
+    var s = shortDate(start), e = shortDate(end);
+    if (s && e) return s + '~' + e;
+    return s || e || '';
+  }
+
+  /* '수업 1차시: 내용' → { no: '1차시', text: '내용' } */
+  function splitLesson(raw, index) {
+    var text = String(raw == null ? '' : raw).trim();
+    var m = /^(?:수업\s*)?(\d+)\s*차시\s*[:：.\-]?\s*([\s\S]*)$/.exec(text);
+    if (m && m[2].trim()) return { no: m[1] + '차시', text: m[2].trim() };
+    return { no: (index + 1) + '차시', text: text };
+  }
+
+  function card(title, body, note) {
+    return '<div class="card">' +
+             '<h2 class="card-title">' + title +
+               (note ? '<span class="card-note">' + esc(note) + '</span>' : '') +
+             '</h2>' + body +
+           '</div>';
+  }
+
+  /* ---------- 헤더 ---------- */
+
+  function headerHtml(d) {
+    var period = formatPeriod(d.startDate, d.endDate);
+    return '' +
+      '<div class="header">' +
+        '<div class="header-emoji">📘</div>' +
+        '<div class="header-title">' + esc(B.reportBrand) + '<br>주간 학습 레포트</div>' +
+        (period ? '<div class="header-period num">📅 ' + esc(period) + '</div>' : '') +
+      '</div>';
+  }
+
+  /* ---------- 학생 정보 ---------- */
+
+  function studentHtml(d) {
+    var rows = [['학교', d.school], ['학년', d.grade], ['이름', d.studentName]];
+    var body = '<div class="student-info">' + rows.map(function (r) {
+      return '<div class="info-item">' +
+               '<div class="info-label">' + r[0] + '</div>' +
+               '<div class="info-value">' + (esc(r[1]) || '-') + '</div>' +
+             '</div>';
+    }).join('') + '</div>';
+    return card('📋 학생 정보', body);
+  }
+
+  /* ---------- 출결 ----------
+     주 1회 수업이라 횟수를 세지 않고 상태 하나만 표시한다.
+     출석 = 체크가 들어간 동그라미 / 지각 = 세모 / 결석 = 엑스 / 보강 = "보강 완료"
+     지각·보강일 때는 note 에 짧은 메모를 넣을 수 있다. (선택)
+     도형은 이모지 대신 SVG 로 그린다. 기기마다 모양이 달라지지 않게 하기 위함이다. */
+
+  var MARKS = {
+    /* 동그라미 색은 CSS 의 .att-box--attend .att-mark 에서 정한다 */
+    attend:
+      '<circle cx="29" cy="29" r="26" fill="currentColor"/>' +
+      '<path d="M18 29.5 L26 37 L41 21" fill="none" stroke="#fff" stroke-width="4.6"' +
+      ' stroke-linecap="round" stroke-linejoin="round"/>',
+    late:
+      '<path d="M29 9 L51 48 L7 48 Z" fill="currentColor" stroke="currentColor"' +
+      ' stroke-width="6" stroke-linejoin="round"/>',
+    absent:
+      '<path d="M15 15 L43 43 M43 15 L15 43" fill="none" stroke="currentColor"' +
+      ' stroke-width="7" stroke-linecap="round"/>',
+    makeup:
+      '<circle cx="29" cy="29" r="25" fill="none" stroke="currentColor" stroke-width="4.5"/>' +
+      '<path d="M18 29.5 L26 37 L41 21" fill="none" stroke="currentColor" stroke-width="4.6"' +
+      ' stroke-linecap="round" stroke-linejoin="round"/>',
+    none:
+      '<circle cx="29" cy="29" r="25" fill="none" stroke="currentColor" stroke-width="4.5"' +
+      ' stroke-dasharray="5 7"/>'
+  };
+
+  var LABELS = {
+    attend: '출석', late: '지각', absent: '결석',
+    makeup: '보강 완료', none: '기록 없음'
+  };
+
+  /* 영문 키와 한글 값을 모두 받는다. 입력 폼은 버튼 네 개로 만들 예정이라
+     'attend' 로 저장하든 '출석' 으로 저장하든 동작하게 둔다. */
+  var STATUS_ALIAS = {
+    attend: 'attend', 출석: 'attend',
+    late:   'late',   지각: 'late',
+    absent: 'absent', 결석: 'absent',
+    makeup: 'makeup', 보강: 'makeup', 보강완료: 'makeup', '보강 완료': 'makeup'
+  };
+
+  function resolveStatus(a) {
+    var key = STATUS_ALIAS[String(a.status || '').trim()];
+    if (key) return key;
+
+    /* 이전 스키마({ attend: 1, absent: 0, late: 0 }) 호환 */
+    if (intOf(a.absent) > 0) return 'absent';
+    if (intOf(a.late)   > 0) return 'late';
+    if (intOf(a.attend) > 0) return 'attend';
+
+    return 'none';
+  }
+
+  function attendanceHtml(d) {
+    var a = d.attendance || {};
+    var key = resolveStatus(a);
+    var note = String(a.note == null ? '' : a.note).trim();
+
+    var body = '' +
+      '<div class="att-box att-box--' + key + '">' +
+        '<div class="att-mark">' +
+          '<svg viewBox="0 0 58 58" aria-hidden="true" focusable="false">' + MARKS[key] + '</svg>' +
+        '</div>' +
+        '<div class="att-state">' + LABELS[key] + '</div>' +
+        (note ? '<div class="att-note">' + esc(note) + '</div>' : '') +
+      '</div>';
+
+    return card('📅 출결', body);
+  }
+
+  /* ---------- 이번주 학습 내용 ---------- */
+
+  function lessonsHtml(d) {
+    var list = (d.lessons || []).filter(function (l) { return String(l || '').trim(); });
+    if (!list.length) return '';
+
+    var body = '<ul class="lesson-list">' + list.map(function (raw, i) {
+      var L = splitLesson(raw, i);
+      return '<li class="lesson-item">' +
+               '<span class="lesson-check">✓</span>' +
+               '<span><b class="lesson-no">' + esc(L.no) + '</b>' + esc(L.text) + '</span>' +
+             '</li>';
+    }).join('') + '</ul>';
+
+    return card('📖 이번주 학습 내용', body, '총 ' + list.length + '차시');
+  }
+
+  /* ---------- 수업 집중도 ---------- */
+
+  function focusHtml(d) {
+    var score = Math.max(0, Math.min(5, Math.round(Number(d.focusScore) || 0)));
+    var stars = '';
+    for (var i = 1; i <= 5; i++) {
+      stars += '<span class="focus-star' + (i <= score ? ' active' : '') + '">★</span>';
+    }
+    var body = '<div class="focus-stars" aria-hidden="true">' + stars + '</div>' +
+               '<div class="focus-score-text num">' + score + ' / 5 점</div>' +
+               '<span class="sr-only">수업 집중도 5점 만점에 ' + score + '점</span>';
+    return card('⭐ 수업 집중도', body);
+  }
+
+  /* ---------- 리뷰테스트 점수 ---------- */
+
+  function testsHtml(d) {
+    var list = (d.tests || []).filter(function (t) { return t && String(t.name || '').trim(); });
+    if (!list.length) return '';
+
+    var body = list.map(function (t) {
+      var score = pct(t.score);
+      var none = score === 0;               /* 0점 = 미응시 */
+      return '<div class="test-item' + (none ? ' is-none' : '') + '">' +
+               '<div class="test-header">' +
+                 '<span class="test-name">' + esc(t.name) +
+                   (none ? '<span class="test-badge">미응시</span>' : '') +
+                 '</span>' +
+                 '<span class="test-score-text num">' + score + ' <small>/ 100</small></span>' +
+               '</div>' +
+               '<div class="progress-bar">' +
+                 '<div class="progress-fill" data-width="' + score + '"></div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+
+    return card('📝 리뷰테스트 점수', body);
+  }
+
+  /* ---------- 과제 수행 ---------- */
+
+  function homeworkHtml(d) {
+    var hw = d.homework || {};
+    var done = 0;
+
+    var body = '<div class="homework-days">' + DAYS.map(function (day) {
+      var ok = !!hw[day];
+      if (ok) done++;
+      return '<div class="hw-day">' +
+               '<div class="hw-circle' + (ok ? ' done' : '') + '" aria-hidden="true">' +
+                 (ok ? '✓' : '✗') +
+               '</div>' +
+               '<div class="hw-day-label">' + day + '</div>' +
+               '<span class="sr-only">' + day + '요일 과제 ' + (ok ? '제출' : '미제출') + '</span>' +
+             '</div>';
+    }).join('') + '</div>';
+
+    return card('✅ 과제 수행', body, done + ' / ' + DAYS.length + '일');
+  }
+
+  /* ---------- 과제 제출률 (원형 게이지) ---------- */
+
+  function rateCircle(value, label) {
+    var v = pct(value);
+    var R = 45;
+    var C = 2 * Math.PI * R;
+    return '' +
+      '<div class="rate-circle-wrapper' + (v === 0 ? ' is-zero' : '') + '">' +
+        '<div class="rate-circle">' +
+          '<svg viewBox="0 0 110 110" aria-hidden="true" focusable="false">' +
+            '<circle class="rate-circle-bg" cx="55" cy="55" r="' + R + '" fill="none" stroke-width="10"/>' +
+            '<circle class="rate-circle-fill" cx="55" cy="55" r="' + R + '" fill="none" stroke-width="10"' +
+              ' stroke-dasharray="' + C.toFixed(2) + '"' +
+              ' stroke-dashoffset="' + C.toFixed(2) + '"' +
+              ' data-offset="' + (C - (v / 100) * C).toFixed(2) + '"/>' +
+          '</svg>' +
+          '<div class="rate-num num">' + v + '<small>%</small></div>' +
+        '</div>' +
+        '<div class="rate-label">' + esc(label) + '</div>' +
+      '</div>';
+  }
+
+  function ratesHtml(d) {
+    var body = '<div class="rate-grid">' +
+                 rateCircle(d.submitRate, '과제 제출률') +
+                 rateCircle(d.onTimeRate, '기한 준수율') +
+               '</div>';
+    return card('📊 과제 제출률', body);
+  }
+
+  /* ---------- 종합 코멘트 ---------- */
+
+  function commentHtml(d) {
+    var text = String(d.comment == null ? '' : d.comment).trim();
+    if (!text) return '';
+    /* white-space: pre-wrap 이 줄바꿈을 그대로 유지한다 */
+    var body = '<div class="comment-box">' +
+                 '<span class="comment-quote-open" aria-hidden="true">“</span>' +
+                 esc(text) +
+                 '<span class="comment-quote-close" aria-hidden="true">”</span>' +
+               '</div>';
+    return card('✍️ ' + esc(B.commentTitle), body);
+  }
+
+  /* ---------- 진입 시 채움 애니메이션 ---------- */
+
+  function animate() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        root.querySelectorAll('.progress-fill').forEach(function (el) {
+          el.style.width = el.getAttribute('data-width') + '%';
+        });
+        root.querySelectorAll('.rate-circle-fill').forEach(function (el) {
+          el.setAttribute('stroke-dashoffset', el.getAttribute('data-offset'));
+        });
+      });
+    });
+  }
+
+  /* ---------- 실행 ---------- */
+
+  try {
+    var data = JSON.parse(document.getElementById('report-data').textContent);
+
+    root.innerHTML =
+      headerHtml(data) +
+      studentHtml(data) +
+      attendanceHtml(data) +
+      lessonsHtml(data) +
+      focusHtml(data) +
+      testsHtml(data) +
+      homeworkHtml(data) +
+      ratesHtml(data) +
+      commentHtml(data);
+
+    /* head 의 <title> 과 같은 형식으로 맞춘다 → '김하늘 학생 · 6/1~6/5 레포트' */
+    if (data.studentName) {
+      var sp = shortPeriod(data.startDate, data.endDate);
+      document.title = data.studentName + ' 학생 · ' + (sp ? sp + ' ' : '') + '레포트';
+    }
+
+    animate();
+  } catch (e) {
+    root.innerHTML = '<div class="empty">레포트를 불러오지 못했습니다.<br>선생님께 다시 확인 부탁드립니다.</div>';
+  }
+})(window);
+</script>
+</body>
+</html>

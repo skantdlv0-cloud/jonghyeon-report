@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title data-brand="adminTitle">김종현 관리 시스템</title>
+
+<!-- 교사·조교 전용 도구. 검색에 노출되지 않게 한다. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#F6F5FC">
+
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="style.css?v=20260916a">
+</head>
+<body class="is-locked">
+
+<!-- ============================================================
+     로그인 관문 — 로그인 전에는 아무것도 보이지 않는다
+     ============================================================ -->
+<div class="gate" id="authGate">
+  <form class="gate__card" id="loginForm">
+    <div class="gate__brand">
+      <span class="brand__dot" aria-hidden="true"></span>
+      <span data-brand="adminTitle">김종현 관리 시스템</span>
+    </div>
+    <p class="gate__desc">선생님과 조교만 사용합니다</p>
+
+    <label class="field">
+      <span class="field__label">아이디</span>
+      <input class="input" id="loginId" type="text" autocomplete="username"
+             autocapitalize="off" autocorrect="off" spellcheck="false"
+             placeholder="jonghyeon" required>
+      <span class="field__hint" id="loginIdHint">아이디만 입력하면 됩니다 (예: jonghyeon)</span>
+    </label>
+
+    <label class="field" style="margin-top:12px">
+      <span class="field__label">비밀번호</span>
+      <input class="input" id="loginPw" type="password" autocomplete="current-password" required>
+    </label>
+
+    <div class="modal__error" id="loginError"></div>
+
+    <button class="btn btn--primary gate__submit" id="btnLogin" type="submit">로그인</button>
+
+    <p class="gate__foot">
+      비밀번호를 잊으면 선생님이 Supabase 에서 직접 바꿔 드립니다.<br>
+      공용 PC 에서는 사용하지 마세요.
+      <span class="gate__ver" id="appVersion"></span>
+    </p>
+  </form>
+</div>
+
+<header class="topbar" id="topbar" hidden>
+  <div class="topbar__inner">
+    <div class="brand">
+      <span class="brand__dot" aria-hidden="true"></span>
+      <span data-brand="adminTitle">김종현 관리 시스템</span>
+      <span class="brand__sub" id="brandCount">학생 0명</span>
+      <span class="whoami" id="whoamiWrap" hidden>
+        <span class="sync sync--ok" id="syncDot">저장됨</span>
+        <span class="whoami__id" id="whoami"></span>
+        <button class="btn btn--sm btn--ghost" id="btnLogout" type="button">로그아웃</button>
+      </span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="작업 단계">
+      <button class="tab" role="tab" id="tab-roster"  aria-controls="panel-roster"  aria-selected="true">
+        <span class="tab__num">1</span>명단
+      </button>
+      <button class="tab" role="tab" id="tab-write"   aria-controls="panel-write"   aria-selected="false">
+        <span class="tab__num">2</span>작성
+      </button>
+      <button class="tab" role="tab" id="tab-publish" aria-controls="panel-publish" aria-selected="false">
+        <span class="tab__num">3</span>발행
+      </button>
+      <button class="tab" role="tab" id="tab-send" aria-controls="panel-send" aria-selected="false">
+        <span class="tab__num">4</span>발송
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="appRoot" hidden>
+
+  <!-- ============================================================
+       공용 안내 — 공용 PC 경고
+       ============================================================ -->
+  <div class="notice notice--warn" id="publicPcNotice" hidden>
+    <span class="notice__icon" aria-hidden="true">⚠️</span>
+    <div class="notice__body">
+      <b>공용 PC에서는 사용하지 마세요.</b>
+      로그인 상태와 깃허브 토큰이 이 브라우저에 남습니다.
+      남의 컴퓨터에서 열었다면 ① 명단 탭 맨 아래
+      <b>[이 기기에서 로그아웃하고 정리]</b>를 꼭 눌러 주세요.
+    </div>
+    <button class="notice__close" id="publicPcClose" type="button" aria-label="닫기">×</button>
+  </div>
+
+  <!-- ============================================================
+       ① 명단
+       ============================================================ -->
+  <section id="panel-roster" role="tabpanel" aria-labelledby="tab-roster">
+
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">학생 명단</h2>
+        <p class="panel__hint" id="rosterHint">서버에 저장되어 모든 기기에서 같이 보입니다</p>
+        <div class="spacer"></div>
+        <button class="btn" id="btnManageFields" type="button">학생 칸 관리</button>
+        <button class="btn btn--primary" id="btnAddStudent" type="button">+ 학생 추가</button>
+      </div>
+
+      <div class="notice notice--info" id="migrateNotice" hidden>
+        <span class="notice__icon" aria-hidden="true">☁️</span>
+        <div class="notice__body">
+          <b>이 브라우저에만 있던 자료가 보입니다.</b>
+          서버로 한 번 올리면 선생님·조교가 어느 기기에서든 같은 내용을 봅니다.
+          <div style="margin-top:9px">
+            <button class="btn btn--sm btn--primary" id="btnMigrate" type="button">
+              서버로 올리기
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search">
+          <span class="search__icon" aria-hidden="true">🔍</span>
+          <input class="input" id="searchInput" type="search" placeholder="이름·학교·반 검색"
+                 autocomplete="off" aria-label="학생 검색">
+        </div>
+        <select class="select" id="classFilter" aria-label="반 필터">
+          <option value="">전체 반</option>
+        </select>
+        <button class="btn btn--sm" id="btnExpandAll" type="button">모두 펼치기</button>
+      </div>
+
+      <div id="rosterList" aria-live="polite"></div>
+    </div>
+
+    <!-- 반 현황 — 반마다 한 번만 적으면 되는 것들 -->
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">반 현황</h2>
+        <p class="panel__hint">시험 범위·수업 진도처럼 반마다 한 번만 적으면 되는 내용</p>
+        <div class="spacer"></div>
+        <button class="btn" id="btnManageClassFields" type="button">반 칸 관리</button>
+      </div>
+
+      <div class="notice notice--warn" id="classSqlNotice" hidden>
+        <span class="notice__icon" aria-hidden="true">🗄️</span>
+        <div class="notice__body">
+          <b>반 현황을 쓰려면 SQL 을 한 번 실행해야 합니다.</b>
+          Supabase → SQL Editor 에서
+          <code>supabase/migration-004-class-fields.sql</code> 을 붙여넣고 실행해 주세요.
+          그 전까지 <b>칸을 만들거나 고친 내용은 이 기기에만</b> 남습니다.
+          (학생 칸도 마찬가지입니다. 명단·작성·발행·발송은 평소대로 됩니다.)
+          SQL 을 실행한 뒤 아무 칸이나 한 번 저장하면 그때 서버로 올라갑니다.
+        </div>
+      </div>
+
+      <div id="classInfoList" aria-live="polite"></div>
+    </div>
+
+    <!-- 백업 -->
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">백업 파일</h2>
+        <p class="panel__hint">서버에 문제가 생겼을 때를 대비한 사본입니다</p>
+      </div>
+
+      <div class="toolbar" style="margin-bottom:14px">
+        <button class="btn" id="btnExport" type="button">🔒 암호 백업 내려받기</button>
+        <button class="btn" id="btnImport" type="button">📂 백업 불러오기</button>
+        <input type="file" id="importFile" accept=".jtbak,.json,application/json" hidden>
+      </div>
+
+      <div class="dropzone" id="dropzone" tabindex="0" role="button">
+        백업 파일을 여기에 <b>끌어다 놓으세요</b><br>
+        또는 눌러서 파일을 고르세요 &nbsp;·&nbsp; <code>.jtbak</code>
+      </div>
+
+      <div class="notice notice--info">
+        <span class="notice__icon" aria-hidden="true">📦</span>
+        <div class="notice__body">
+          <b>기기를 옮길 때는 이 파일이 필요 없습니다.</b>
+          새 기기에서 로그인만 하면 서버에서 그대로 내려옵니다.<br>
+          이 백업은 <b>서버가 멈추거나 자료가 지워졌을 때</b> 되돌리기 위한 사본입니다.
+          담기는 것 — 학생 명단 · 발송 기록 · 발행 이력 · 코멘트 상용구.
+          담기지 <b>않는</b> 것 — <b>깃허브 토큰</b>(기기마다 따로 발급·폐기하므로).
+        </div>
+      </div>
+
+      <div class="notice notice--danger">
+        <span class="notice__icon" aria-hidden="true">🔑</span>
+        <div class="notice__body">
+          백업 파일은 <b>암호로 잠깁니다.</b> 파일과 암호는 따로 전달하세요
+          (예: 파일은 메일, 암호는 문자).
+          <b>암호를 잊으면 그 파일은 다시 열 수 없습니다.</b> 복구 방법이 없습니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 위험 구역 -->
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">이 기기 정리</h2>
+        <p class="panel__hint">조교를 교체하거나 노트북을 넘길 때</p>
+      </div>
+
+      <div class="toolbar" style="margin-bottom:12px">
+        <button class="btn btn--danger" id="btnClearAll" type="button">
+          이 기기에서 로그아웃하고 정리
+        </button>
+      </div>
+
+      <p class="panel__hint">
+        이 브라우저에 남아 있는 <b>로그인 상태 · 깃허브 토큰 · 내려받아 둔 사본</b>을 지우고
+        로그아웃합니다.<br>
+        <b>서버의 학생 명단과 작성 내용은 지워지지 않습니다.</b>
+        다시 로그인하면 그대로 보입니다. 학생을 정말 지우려면 위 목록에서 한 명씩 삭제하세요.
+        깃허브에 올라간 레포트 링크도 그대로 살아 있습니다.
+      </p>
+    </div>
+
+  </section>
+
+  <!-- ============================================================
+       ② 작성 — B단계에서 구현
+       ============================================================ -->
+  <section id="panel-write" role="tabpanel" aria-labelledby="tab-write" hidden>
+
+    <!-- 명단이 비었을 때 -->
+    <div class="panel" id="writeNoStudents" hidden>
+      <div class="soon">
+        <div class="soon__icon" aria-hidden="true">📋</div>
+        <div class="soon__title">먼저 학생을 등록해 주세요</div>
+        <div class="soon__desc">① 명단 탭에서 학생을 추가하거나 백업을 불러오면 작성할 수 있습니다.</div>
+      </div>
+    </div>
+
+    <div id="writeMain">
+
+      <!-- 주차 -->
+      <div class="panel">
+        <div class="panel__head">
+          <h2 class="panel__title">주차</h2>
+          <p class="panel__hint">시작일을 고르면 종료일이 그 주 금요일로 채워집니다</p>
+          <div class="spacer"></div>
+          <button class="btn btn--sm" id="btnThisWeek" type="button">이번 주</button>
+        </div>
+        <div class="toolbar">
+          <label class="field">
+            <span class="field__label">시작일</span>
+            <input class="input" id="weekStart" type="date">
+          </label>
+          <label class="field">
+            <span class="field__label">종료일</span>
+            <input class="input" id="weekEnd" type="date">
+          </label>
+          <div class="week-summary num" id="weekSummary"></div>
+        </div>
+      </div>
+
+      <!-- 반 고르기 -->
+      <div class="panel">
+        <div class="panel__head">
+          <h2 class="panel__title">반 고르기</h2>
+          <p class="panel__hint" id="classPickerHint"></p>
+        </div>
+        <div class="chips" id="classPicker"></div>
+      </div>
+
+      <!-- 반 공통 -->
+      <div class="panel" id="commonPanel">
+        <div class="panel__head">
+          <h2 class="panel__title" id="commonTitle">반 공통</h2>
+          <p class="panel__hint">이 반 학생 전원에게 똑같이 들어갑니다</p>
+          <div class="spacer"></div>
+          <button class="btn btn--sm" id="btnLoadLast" type="button">지난주 불러오기</button>
+        </div>
+
+        <div class="sub">
+          <div class="sub__head">
+            <span class="sub__title">수업 내용</span>
+            <button class="btn btn--sm" id="btnAddLesson" type="button">+ 차시 추가</button>
+          </div>
+          <div id="lessonList"></div>
+        </div>
+
+        <div class="sub">
+          <div class="sub__head">
+            <span class="sub__title">리뷰테스트</span>
+            <span class="sub__hint">이름만 적습니다. 점수는 학생별로 넣습니다</span>
+            <button class="btn btn--sm" id="btnAddTest" type="button">+ 테스트 추가</button>
+          </div>
+          <div id="testList"></div>
+        </div>
+      </div>
+
+      <!-- 학생별 입력 -->
+      <div class="panel" id="entryPanel">
+        <div class="panel__head">
+          <h2 class="panel__title">학생별 입력</h2>
+          <p class="panel__hint" id="entryProgress"></p>
+          <div class="spacer"></div>
+          <label class="chk-inline">
+            <input type="checkbox" id="onlyUnwritten"> 안 쓴 학생만
+          </label>
+          <button class="btn btn--sm" id="btnCollapseEntries" type="button">모두 접기</button>
+        </div>
+        <div id="entryList"></div>
+
+        <div class="queue-bar">
+          <div class="queue-bar__info" id="queueInfo"></div>
+          <button class="btn btn--primary" id="btnEnqueue" type="button">
+            ③ 발행 탭으로
+          </button>
+        </div>
+        <p class="panel__hint" style="margin-top:8px">
+          출결을 고른 학생은 <b>따로 담지 않아도</b> ③ 발행 탭에 자동으로 올라옵니다.
+          여러 반을 다 쓴 뒤 <b>한 번에</b> 발행하면 됩니다.
+        </p>
+      </div>
+
+      <!-- 미리보기 -->
+      <div class="panel" id="previewPanel">
+        <div class="panel__head">
+          <h2 class="panel__title">미리보기</h2>
+          <p class="panel__hint" id="previewWho">학생 카드를 누르면 그 학생 레포트가 보입니다</p>
+          <div class="spacer"></div>
+          <button class="btn btn--sm" id="btnPreviewReload" type="button">새로고침</button>
+        </div>
+        <iframe id="previewFrame" title="레포트 미리보기"></iframe>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ③ 발행 — D단계에서 구현
+       ============================================================ -->
+  <section id="panel-publish" role="tabpanel" aria-labelledby="tab-publish" hidden>
+
+    <!-- 깃허브 토큰 -->
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">깃허브 토큰</h2>
+        <p class="panel__hint" id="tokenHint">이 브라우저에만 저장됩니다</p>
+      </div>
+
+      <div id="tokenSetup">
+        <div class="toolbar" style="margin-bottom:10px">
+          <input class="input" id="tokenInput" type="password" autocomplete="off"
+                 spellcheck="false" placeholder="github_pat_… 붙여넣기">
+          <button class="btn btn--primary" id="btnSaveToken" type="button">확인하고 저장</button>
+        </div>
+        <div class="modal__error" id="tokenError"></div>
+
+        <details class="howto">
+          <summary>토큰 만드는 방법</summary>
+          <ol class="howto__list">
+            <li>GitHub → 프로필 사진 → <b>Settings</b></li>
+            <li>왼쪽 맨 아래 <b>Developer settings</b></li>
+            <li><b>Personal access tokens → Fine-grained tokens</b> → <code>Generate new token</code></li>
+            <li>Token name: <code>jonghyeon-report 발행용</code></li>
+            <li>Expiration: <b>90 days</b></li>
+            <li>Resource owner: <code>skantdlv0-cloud</code></li>
+            <li>Repository access: <b>Only select repositories</b> → <code>jonghyeon-report</code> 하나만</li>
+            <li>Permissions → Repository permissions → <b>Contents</b> 를 <b>Read and write</b><br>
+                (Metadata 는 자동으로 켜집니다) 나머지는 전부 No access</li>
+            <li><code>Generate token</code> → <b>이 화면에서 한 번만 보입니다.</b> 복사해서 위에 붙여넣기</li>
+          </ol>
+        </details>
+      </div>
+
+      <div id="tokenSaved" hidden>
+        <div class="notice notice--info" style="margin-top:0">
+          <span class="notice__icon" aria-hidden="true">🔑</span>
+          <div class="notice__body">
+            <b id="tokenRepo">저장소 확인됨</b>
+            <div class="panel__hint" id="tokenMeta"></div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn--danger" id="btnClearToken" type="button">토큰 지우기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 발행 -->
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">발행</h2>
+        <p class="panel__hint" id="pubWeekHint"></p>
+        <div class="spacer"></div>
+        <button class="btn btn--sm" id="btnPubRefresh" type="button">목록 새로고침</button>
+      </div>
+
+      <div id="pubList"></div>
+
+      <div class="queue-bar">
+        <div class="queue-bar__info" id="pubInfo"></div>
+        <button class="btn btn--primary" id="btnPublish" type="button" disabled>
+          한꺼번에 올리기
+        </button>
+      </div>
+
+      <div class="progress" id="pubProgress" hidden>
+        <div class="progress__bar"><div class="progress__fill" id="pubFill"></div></div>
+        <div class="progress__label" id="pubLabel"></div>
+      </div>
+
+      <div class="modal__error" id="pubError"></div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="panel" id="pubResultPanel" hidden>
+      <div class="panel__head">
+        <h2 class="panel__title">발행 완료</h2>
+        <p class="panel__hint" id="pubResultHint"></p>
+      </div>
+      <div id="pubResult"></div>
+      <div class="notice notice--info">
+        <span class="notice__icon" aria-hidden="true">📨</span>
+        <div class="notice__body">
+          보내기는 <b>④ 발송</b> 탭에서 합니다. 주차를 골라 나중에 이어서 보낼 수도 있습니다.
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================================================
+       ④ 발송
+       ============================================================ -->
+  <section id="panel-send" role="tabpanel" aria-labelledby="tab-send" hidden>
+
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">발송</h2>
+        <p class="panel__hint" id="sendProgress"></p>
+        <div class="spacer"></div>
+        <button class="btn btn--sm" id="btnSendRefresh" type="button">새로고침</button>
+      </div>
+
+      <div class="toolbar">
+        <select class="select" id="sendWeek" aria-label="주차 선택"></select>
+        <select class="select" id="sendClassFilter" aria-label="반 필터">
+          <option value="">전체 반</option>
+        </select>
+        <select class="select" id="sendFilter" aria-label="보냄 여부 필터">
+          <option value="all">전체</option>
+          <option value="todo">안 보낸 학생만</option>
+          <option value="done">보낸 학생만</option>
+        </select>
+        <button class="btn btn--sm" id="btnEditGreeting" type="button">인사말 고치기</button>
+      </div>
+
+      <div id="sendList" aria-live="polite"></div>
+    </div>
+
+    <div class="notice notice--info" id="phoneLinkNote">
+      <span class="notice__icon" aria-hidden="true">💬</span>
+      <div class="notice__body">
+        <b>[문자 보내기]</b>를 누르면 이 기기의 문자 앱이 열립니다.
+        노트북에서는 Windows <b>휴대폰과 연결</b> 앱이 열립니다
+        (처음 한 번은 폰과 연결해 두어야 합니다).
+        앱이 안 열리면 <b>[문구 복사]</b>로 복사해서 붙여넣으세요.
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- ============================================================
+     학생 추가·수정 모달
+     ============================================================ -->
+<dialog class="modal" id="studentModal">
+  <form method="dialog" id="studentForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="studentModalTitle">학생 추가</h2>
+      <p class="modal__desc">이름을 적으면 파일명에 쓸 로마자가 자동으로 채워집니다</p>
+    </div>
+
+    <div class="modal__body">
+      <div class="grid2">
+        <label class="field">
+          <span class="field__label">이름 *</span>
+          <input class="input" id="fName" type="text" required autocomplete="off" placeholder="김하늘">
+        </label>
+
+        <label class="field">
+          <span class="field__label">로마자 (파일명용) *</span>
+          <input class="input" id="fSlug" type="text" required autocomplete="off"
+                 placeholder="haneul" pattern="[a-z0-9]+">
+          <span class="field__hint">영어 소문자·숫자만. 한 번 정하면 계속 같은 값을 씁니다.</span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">학교</span>
+          <input class="input" id="fSchool" type="text" autocomplete="off" placeholder="OO고등학교">
+        </label>
+
+        <label class="field">
+          <span class="field__label">학년</span>
+          <input class="input" id="fGrade" type="text" autocomplete="off" placeholder="고1"
+                 list="gradeOptions">
+          <datalist id="gradeOptions">
+            <option value="중1"><option value="중2"><option value="중3">
+            <option value="고1"><option value="고2"><option value="고3">
+          </datalist>
+        </label>
+
+        <label class="field">
+          <span class="field__label">반</span>
+          <input class="input" id="fClass" type="text" autocomplete="off" placeholder="고1 A반"
+                 list="classOptions">
+          <datalist id="classOptions"></datalist>
+          <span class="field__hint">같은 반끼리 수업 내용을 한 번에 입력합니다.</span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">학부모 호칭 <span class="field__opt">선택</span></span>
+          <input class="input" id="fParentTitle" type="text" autocomplete="off"
+                 placeholder="어머님" list="titleOptions">
+          <datalist id="titleOptions">
+            <option value="어머님"><option value="아버님"><option value="보호자님">
+            <option value="할머님"><option value="할아버님">
+          </datalist>
+          <span class="field__hint">문자 인사말에 쓰입니다. 비우면 ‘어머님’으로 나갑니다.</span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">연락처 1 <span class="field__opt">선택</span></span>
+          <input class="input" id="fPhone" type="tel" inputmode="numeric" autocomplete="off"
+                 placeholder="010-1234-5678">
+          <span class="field__hint">문자 보내기에 쓰입니다. 레포트에는 들어가지 않습니다.</span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">연락처 2 <span class="field__opt">선택</span></span>
+          <input class="input" id="fPhone2" type="tel" inputmode="numeric" autocomplete="off"
+                 placeholder="010-9876-5432">
+          <span class="field__hint">문자 보낼 때 두 번호 중 골라서 보냅니다.</span>
+        </label>
+      </div>
+
+      <!-- '칸 관리'에서 만든 칸들이 여기에 그려진다 -->
+      <div id="extraFields"></div>
+
+      <div class="modal__error" id="studentError"></div>
+    </div>
+
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnStudentCancel">취소</button>
+      <button class="btn btn--primary" type="submit" id="btnStudentSave">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============================================================
+     칸 관리 — 내가 만든 칸의 목록
+     ============================================================ -->
+<dialog class="modal modal--wide" id="fieldsModal">
+  <form method="dialog" id="fieldsForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="fieldsTitle">학생 칸 관리</h2>
+      <p class="modal__desc" id="fieldsDesc"></p>
+    </div>
+    <div class="modal__body">
+      <div class="toolbar" style="margin-bottom:12px">
+        <button class="btn btn--primary btn--sm" type="button" id="btnFieldAdd">+ 칸 추가</button>
+        <div class="spacer"></div>
+        <span class="panel__hint" id="fieldsCount"></span>
+      </div>
+      <div id="fieldList" class="field-list"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn btn--primary" type="submit">닫기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 칸 하나 만들기 / 고치기 -->
+<dialog class="modal" id="fieldEditModal">
+  <form method="dialog" id="fieldEditForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="fieldEditTitle">칸 추가</h2>
+      <p class="modal__desc" id="fieldEditDesc">칸 이름은 나중에 언제든 바꿀 수 있습니다</p>
+    </div>
+    <div class="modal__body">
+      <label class="field">
+        <span class="field__label">칸 이름 *</span>
+        <input class="input" id="fdLabel" type="text" autocomplete="off"
+               placeholder="예) 시험 범위" maxlength="24">
+      </label>
+
+      <label class="field" style="margin-top:12px">
+        <span class="field__label">칸 종류</span>
+        <select class="select" id="fdType"></select>
+        <span class="field__hint" id="fdTypeHint"></span>
+      </label>
+
+      <label class="field" id="fdOptionsWrap" style="margin-top:12px" hidden>
+        <span class="field__label">선택지</span>
+        <textarea class="textarea" id="fdOptions" placeholder="상&#10;중&#10;하"></textarea>
+        <span class="field__hint">한 줄에 하나씩 적어 주세요.</span>
+      </label>
+
+      <div id="fdTableWrap">
+        <label class="check-line" style="margin-top:14px">
+          <input type="checkbox" id="fdShowInTable" checked>
+          <span>명단 표에 열로 보이기</span>
+        </label>
+        <span class="field__hint" style="display:block;margin-top:4px">
+          여러 줄 글처럼 내용이 긴 칸은 꺼 두면 표가 깔끔합니다. 학생 수정 창에는 그대로 나옵니다.
+        </span>
+      </div>
+
+      <div class="modal__error" id="fieldEditError"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnFieldEditCancel">취소</button>
+      <button class="btn btn--primary" type="submit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 반 하나의 현황 적기 -->
+<dialog class="modal" id="classInfoModal">
+  <form method="dialog" id="classInfoForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="classInfoTitle">반 현황</h2>
+      <p class="modal__desc" id="classInfoDesc"></p>
+    </div>
+    <div class="modal__body">
+      <div id="classInfoFields"></div>
+      <div class="modal__error" id="classInfoError"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnClassInfoCancel">취소</button>
+      <button class="btn btn--primary" type="submit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============================================================
+     백업 암호 모달 (내보내기 / 불러오기 공용)
+     ============================================================ -->
+<dialog class="modal" id="passModal">
+  <form method="dialog" id="passForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="passTitle">백업 암호</h2>
+      <p class="modal__desc" id="passDesc"></p>
+    </div>
+
+    <div class="modal__body">
+      <label class="field" style="margin-bottom:12px">
+        <span class="field__label">암호</span>
+        <input class="input" id="fPass1" type="password" required minlength="4"
+               autocomplete="new-password" placeholder="4자 이상">
+      </label>
+
+      <label class="field" id="passConfirmField">
+        <span class="field__label">암호 확인</span>
+        <input class="input" id="fPass2" type="password" autocomplete="new-password"
+               placeholder="같은 암호를 한 번 더">
+      </label>
+
+      <div class="notice notice--danger" id="passWarn">
+        <span class="notice__icon" aria-hidden="true">🔒</span>
+        <div class="notice__body">
+          <b>암호를 잊으면 이 백업은 영영 열 수 없습니다.</b>
+          복구 수단이 없으니 안전한 곳에 적어 두세요.
+        </div>
+      </div>
+
+      <div class="modal__error" id="passError"></div>
+    </div>
+
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnPassCancel">취소</button>
+      <button class="btn btn--primary" type="submit" id="btnPassOk">확인</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============================================================
+     확인 모달
+     ============================================================ -->
+<dialog class="modal" id="confirmModal">
+  <form method="dialog">
+    <div class="modal__head">
+      <h2 class="modal__title" id="confirmTitle">확인</h2>
+      <p class="modal__desc" id="confirmDesc"></p>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnConfirmNo">취소</button>
+      <button class="btn btn--danger" type="button" id="btnConfirmYes">삭제</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ============================================================
+     코멘트 전체화면 편집 (폰에서 특히 유용)
+     ============================================================ -->
+<dialog class="modal modal--wide" id="commentModal">
+  <form method="dialog" id="commentForm">
+    <div class="modal__head">
+      <h2 class="modal__title" id="commentWho">코멘트</h2>
+      <p class="modal__desc">줄바꿈은 레포트에 그대로 나옵니다</p>
+    </div>
+    <div class="modal__body">
+      <!-- 이 학생의 '내가 만든 칸' 값. 눌러서 코멘트에 넣는다. -->
+      <div class="info-bar" id="infoBar" hidden></div>
+      <div class="snip-bar" id="snipBar"></div>
+      <textarea class="textarea textarea--tall" id="commentText"
+                placeholder="이번 주 수업에서 보인 모습, 다음 주에 챙길 점을 적어 주세요"></textarea>
+      <div class="count-row">
+        <span id="commentCount">0자</span>
+        <button class="btn btn--sm btn--ghost" type="button" id="btnManageSnips">상용구 관리</button>
+      </div>
+      <div class="modal__error" id="commentWarn"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnCommentCancel">취소</button>
+      <button class="btn btn--primary" type="submit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 상용구 관리 -->
+<dialog class="modal" id="snipModal">
+  <form method="dialog" id="snipForm">
+    <div class="modal__head">
+      <h2 class="modal__title">코멘트 상용구</h2>
+      <p class="modal__desc">자주 쓰는 문장을 등록해 두면 클릭 한 번으로 넣을 수 있습니다</p>
+    </div>
+    <div class="modal__body">
+      <label class="field" style="margin-bottom:10px">
+        <span class="field__label">새 상용구</span>
+        <textarea class="textarea" id="snipNew" placeholder="예) 한 주 동안 성실하게 따라와 준 OO이에게 칭찬 부탁드립니다."></textarea>
+        <span class="field__hint">문장에 <b>OO</b> 를 넣으면 학생 이름으로 바뀝니다.</span>
+      </label>
+      <button class="btn btn--sm" type="button" id="btnSnipAdd">+ 추가</button>
+      <div id="snipList" class="snip-list"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn btn--primary" type="submit">닫기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 인사말 고치기 -->
+<dialog class="modal" id="greetingModal">
+  <form method="dialog" id="greetingForm">
+    <div class="modal__head">
+      <h2 class="modal__title">인사말 고치기</h2>
+      <p class="modal__desc">모든 기기에 같이 반영됩니다</p>
+    </div>
+    <div class="modal__body">
+      <label class="field">
+        <span class="field__label">문자·카톡 인사말</span>
+        <textarea class="textarea" id="greetingText" rows="4"></textarea>
+        <span class="field__hint">
+          <b>{호칭}</b> 어머님·아버님 · <b>{이름}</b> 학생 이름 · <b>{링크}</b> 레포트 주소
+        </span>
+      </label>
+      <div class="greet-preview" id="greetingPreview"></div>
+      <div class="modal__error" id="greetingError"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnGreetingCancel">취소</button>
+      <button class="btn btn--primary" type="submit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 번호 고르기 (연락처가 둘일 때) -->
+<dialog class="modal" id="phonePickModal">
+  <form method="dialog">
+    <div class="modal__head">
+      <h2 class="modal__title" id="phonePickTitle">번호 고르기</h2>
+      <p class="modal__desc">어느 번호로 보낼까요?</p>
+    </div>
+    <div class="modal__body">
+      <div id="phonePickList" class="phone-pick"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnPhonePickCancel">취소</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 맞춤법 확인 -->
+<dialog class="modal" id="spellModal">
+  <form method="dialog">
+    <div class="modal__head">
+      <h2 class="modal__title">보내기 전에 확인해 주세요</h2>
+      <p class="modal__desc">자주 나는 오타를 찾았습니다. 그대로 담아도 됩니다.</p>
+    </div>
+    <div class="modal__body">
+      <div id="spellList" class="spell-list"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="btn" type="button" id="btnSpellFix">고치러 가기</button>
+      <button class="btn btn--primary" type="button" id="btnSpellIgnore">이대로 담기</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<!-- config.js 와 brand.js 가 먼저 와야 한다. 나머지가 이 값을 읽는다. -->
+<script src="config.js?v=20260916a"></script>
+<script src="../assets/brand.js?v=20260916a"></script>
+<script src="supabase.js?v=20260916a"></script>
+<script src="db.js?v=20260916a"></script>
+<script src="github.js?v=20260916a"></script>
+<script src="store.js?v=20260916a"></script>
+<script src="report.js?v=20260916a"></script>
+<script src="app.js?v=20260916a"></script>
+<script src="write.js?v=20260916a"></script>
+<script src="publish.js?v=20260916a"></script>
+<script src="send.js?v=20260916a"></script>
+<script src="auth.js?v=20260916a"></script>
+</body>
+</html>
