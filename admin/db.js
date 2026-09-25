@@ -498,7 +498,10 @@
     return Promise.all([
       c.from('published').select('*').eq('week_start', weekStart),
       c.from('sent').select('*').eq('week_start', weekStart),
-      c.from('week_common').select('week_start,week_end').eq('week_start', weekStart).limit(1)
+      c.from('week_common').select('week_start,week_end').eq('week_start', weekStart).limit(1),
+      /* 종료일의 주인은 week_meta 다. 표가 아직 없으면(migration-003 미실행)
+         빈 값으로 넘어가고 아래에서 week_common 값을 쓴다. */
+      optional('week_meta', c.from('week_meta').select('week_end').eq('week_start', weekStart).limit(1))
     ]).then(function (res) {
       res.forEach(function (r) { if (r.error) throw new Error(r.error.message); });
 
@@ -512,7 +515,12 @@
         sent[r.student_id] = { at: r.sent_at, via: r.via, by: r.sent_by };
       });
 
-      var weekEnd = (res[2].data && res[2].data.length) ? res[2].data[0].week_end : '';
+      /* week_meta 먼저, 없으면 옛 자리(week_common), 그래도 없으면 빈 값.
+         뒤집힌 값은 쓰지 않는다. */
+      var meta = (res[3] && res[3].data && res[3].data.length) ? res[3].data[0].week_end : '';
+      var old  = (res[2].data && res[2].data.length) ? res[2].data[0].week_end : '';
+      var weekEnd = meta || old || '';
+      if (weekEnd && weekEnd < weekStart) weekEnd = '';
 
       return { published: published, sent: sent, weekEnd: weekEnd };
     });

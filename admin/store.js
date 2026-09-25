@@ -639,13 +639,53 @@
     return x;
   }
 
-  /* 시작일이 속한 주의 금요일 */
+  /* 시작일이 속한 주의 금요일.
+
+     ⚠ 이 값은 시작일보다 빠를 수 있다. 토요일이나 일요일을 시작일로
+     고르면 '그 주 금요일' 은 이미 지나간 날이다.
+       2026-09-19(토) → 2026-09-18(금)
+     9/19~9/18 로 42건이 발행된 첫 단추가 바로 이것이었다.
+
+     그래서 이 함수를 자동 종료일에 그대로 쓰지 않는다.
+     autoEnd() 를 쓴다. 이 함수는 옛 자료를 읽을 때의 대비책으로만 남긴다. */
   function fridayOfWeek(startISO) {
     var d = parseISO(startISO);
     if (!d) return '';
     var mon = mondayOf(d);
     mon.setDate(mon.getDate() + 4);
     return toISO(mon);
+  }
+
+  /* 기본 기간 길이(일). 사람이 종료일을 고치면 그 길이를 기억해 두고
+     다음 주차에도 같은 길이를 쓴다. 월~금이면 5, 월~일이면 7.
+     한 번도 안 고쳤으면 5(월~금). */
+  var DEFAULT_SPAN = 5;
+
+  function weekSpan() {
+    var n = Number(read(KEYS.settings, {}).weekSpan);
+    return (n >= 1 && n <= 31) ? Math.round(n) : DEFAULT_SPAN;
+  }
+
+  function setWeekSpan(days) {
+    var n = Math.round(Number(days) || 0);
+    if (n < 1 || n > 31) return;
+    var s = read(KEYS.settings, {});
+    if (s.weekSpan === n) return;
+    s.weekSpan = n;
+    write(KEYS.settings, s);
+  }
+
+  /* 시작일만 고른 상태에서 자동으로 채울 종료일.
+
+     '그 주 금요일' 이 아니라 '지난번과 같은 기간 길이' 를 쓴다.
+     그래야 무슨 요일로 시작하든 종료일이 시작일보다 빠를 수 없다.
+       월요일 시작 + 5일 = 그 주 금요일  (예전과 같은 결과)
+       토요일 시작 + 5일 = 다음 수요일   (예전에는 지난 금요일이 나왔다) */
+  function autoEnd(startISO, span) {
+    var days = span || weekSpan();
+    var e = endFromSpan(startISO, days);
+    if (!e) return '';
+    return e < startISO ? startISO : e;      /* 어떤 경우에도 역전되지 않는다 */
   }
 
   var DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -672,12 +712,11 @@
     return toISO(d);
   }
 
-  /* 오늘이 속한 주의 월~금 */
+  /* 오늘이 속한 주. 끝은 기억해 둔 기간 길이를 따른다.
+     월~금으로 쓰면 5일, 월~일로 쓰면 7일이 된다. */
   function thisWeek() {
-    var mon = mondayOf(new Date());
-    var fri = new Date(mon.getTime());
-    fri.setDate(fri.getDate() + 4);
-    return { start: toISO(mon), end: toISO(fri) };
+    var start = toISO(mondayOf(new Date()));
+    return { start: start, end: autoEnd(start) };
   }
 
   /* '2026-06-01' → '0601' (파일명용) */
@@ -754,10 +793,10 @@
       var week = d.latestWeek ||
                  (weeks.length ? weeks[weeks.length - 1] : thisWeek().start);
 
-      /* 종료일은 week_meta 가 주인이다. 서버에 없을 때만 그 주 금요일로 둔다. */
-      var end = d.weekEnds[week] || fridayOfWeek(week);
-      /* 뒤집힌 값이 남아 있으면(옛 자료) 쓰지 않는다 */
-      if (end < week) end = fridayOfWeek(week);
+      /* 종료일은 week_meta 가 주인이다. 서버에 없을 때만 자동으로 채운다.
+         옛 자료에 뒤집힌 값(9/19~9/18 같은)이 남아 있으면 쓰지 않는다. */
+      var end = d.weekEnds[week] || '';
+      if (!end || end < week) end = autoEnd(week);
 
       writeLocal(KEYS.draft, {
         weekStart: week,
@@ -939,6 +978,7 @@
     toISO: toISO, parseISO: parseISO,
     fridayOfWeek: fridayOfWeek, thisWeek: thisWeek,
     dateWithDow: dateWithDow, daysBetween: daysBetween, endFromSpan: endFromSpan,
+    autoEnd: autoEnd, weekSpan: weekSpan, setWeekSpan: setWeekSpan,
     mmdd: mmdd, shortDate: shortDate,
 
     getSnippets: getSnippets, saveSnippets: saveSnippets,

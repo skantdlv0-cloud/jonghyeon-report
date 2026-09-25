@@ -24,6 +24,7 @@
     week: '',
     weekEnd: '',
     weeks: [],
+    weekEnds: {},            /* 주차 시작일 → 종료일. 주차 칸에 기간을 적는 데 쓴다 */
     published: {},
     sent: {},
     greeting: DEFAULT_GREETING,
@@ -459,6 +460,10 @@
       state.published = d.published;
       state.sent = d.sent;
       state.weekEnd = d.weekEnd;
+      if (d.weekEnd) {
+        state.weekEnds[state.week] = d.weekEnd;
+        renderWeekOptions();          /* 기간을 알게 됐으니 주차 칸을 다시 적는다 */
+      }
       renderList();
       updateProgress();
     }).catch(function (e) {
@@ -480,7 +485,13 @@
     state.weeks.forEach(function (wk) {
       var o = document.createElement('option');
       o.value = wk;
-      o.textContent = Store.shortDate(wk) + ' 주차';
+      /* 보내기 전에 기간을 눈으로 확인할 수 있게 끝 날짜까지 적는다.
+         예전에는 시작일만 보여서 종료일이 틀려도 알 수 없었다. */
+      var end = state.weekEnds[wk] || '';
+      o.textContent = end
+        ? Store.dateWithDow(wk) + ' ~ ' + Store.dateWithDow(end) +
+          ' · ' + Store.daysBetween(wk, end) + '일'
+        : Store.shortDate(wk) + ' 주차';
       sel.appendChild(o);
     });
     sel.value = state.week;

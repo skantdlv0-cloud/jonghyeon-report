@@ -155,11 +155,13 @@
                  ? Store.daysBetween(prevStart, draft.weekEnd) : 0;
 
     if (span > 0) {
-      draft.weekEnd = Store.endFromSpan(draft.weekStart, span) || draft.weekEnd;
+      draft.weekEnd = Store.autoEnd(draft.weekStart, span) || draft.weekEnd;
       toast(span + '일 기간을 그대로 옮겼습니다');
     } else {
-      var fri = Store.fridayOfWeek(draft.weekStart);
-      if (fri) draft.weekEnd = fri;        /* 처음이면 그 주 금요일로 자동 */
+      /* 지난번에 쓰던 기간 길이로 자동. '그 주 금요일' 을 쓰지 않는 이유는
+         토·일을 시작일로 고르면 그 금요일이 이미 지나간 날이라
+         종료일이 시작일보다 빨라지기 때문이다. */
+      draft.weekEnd = Store.autoEnd(draft.weekStart) || draft.weekEnd;
     }
 
     renderWeek();
@@ -176,6 +178,8 @@
     }
     draft.weekEnd = v;
     draft.weekEndTouched = true;           /* 사람이 고른 값이다 */
+    /* 이 길이를 기억해 두고 다음 주차에도 같은 길이를 쓴다 */
+    Store.setWeekSpan(Store.daysBetween(draft.weekStart, v));
     renderWeek();
     saveDraft();
   });
@@ -188,7 +192,7 @@
     renderWeek();
     saveDraft();
     refreshAll();
-    toast('이번 주로 맞췄습니다');
+    toast('이번 주로 맞췄습니다 · ' + Store.daysBetween(w.start, w.end) + '일');
   });
 
   /* ============================================================
