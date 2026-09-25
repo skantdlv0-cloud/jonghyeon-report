@@ -250,7 +250,9 @@
       optional('week_meta', c.from('week_meta').select('*')),
       /* migration-004 가 만드는 칸. 배포가 SQL 보다 먼저 나가도
          반 공통 저장이 실패하지 않도록 있는지 미리 살핀다. */
-      optional('week_common.comment', c.from('week_common').select('comment').limit(1))
+      optional('week_common.comment', c.from('week_common').select('comment').limit(1)),
+      /* migration-005 가 만드는 칸. 없으면 과제 목록을 빼고 저장한다. */
+      optional('week_common.homework', c.from('week_common').select('homework').limit(1))
     ]).then(function (res) {
       res.forEach(function (r) {
         if (r.error) throw new Error('불러오기 실패: ' + r.error.message);
@@ -268,7 +270,9 @@
           lessons: r.lessons || [''],
           tests: r.tests || [''],
           /* 반 공통 코멘트. migration-004 전에는 칸이 없어 undefined 로 온다. */
-          comment: r.comment || ''
+          comment: r.comment || '',
+          /* 과제 목록. migration-005 전에는 칸이 없어 undefined 로 온다. */
+          homework: Array.isArray(r.homework) ? r.homework : []
         };
         /* week_meta 가 없던 시절 자료를 위한 대비책.
            week_meta 에 줄이 있으면 아래에서 덮어쓴다. */
@@ -388,8 +392,11 @@
   function hasClassComment() {
     return missingTables.indexOf('week_common.comment') === -1;
   }
+  function hasClassHomework() {
+    return missingTables.indexOf('week_common.homework') === -1;
+  }
 
-  function saveWeekCommon(weekStart, weekEnd, className, lessons, tests, comment) {
+  function saveWeekCommon(weekStart, weekEnd, className, lessons, tests, comment, homework) {
     if (!weekStart || !className) return Promise.resolve();
     var row = {
       week_start: weekStart,
@@ -398,7 +405,8 @@
       lessons: lessons || [],
       tests: tests || []
     };
-    if (hasClassComment()) row.comment = comment || '';
+    if (hasClassComment())  row.comment  = comment || '';
+    if (hasClassHomework()) row.homework = homework || [];
     return sb().from('week_common').upsert(row, { onConflict: 'week_start,class_name' }).then(check);
   }
 
@@ -463,6 +471,9 @@
         return {
           lessons: row.lessons || [''],
           tests: row.tests || [''],
+          /* 과제 목록은 지난주 것을 그대로 쓰는 일이 많다. 코멘트와 달리
+             이름표라서 다시 적는 수고만 줄여 준다. */
+          homework: Array.isArray(row.homework) ? row.homework : [],
           weekStart: row.week_start,
           weekEnd: row.week_end
         };

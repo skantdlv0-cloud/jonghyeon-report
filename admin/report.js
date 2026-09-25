@@ -119,6 +119,14 @@
       focusScore: Number(entry.focusScore) || 0,
       tests: tests,
       homework: entry.homework || {},
+      /* 반 공통에 적은 과제 목록을 레포트에도 함께 담는다.
+         레포트 파일은 혼자서 그려져야 하므로 이름이 그 안에 있어야 한다. */
+      homeworkItems: homeworkItems(common).map(function (it) {
+        return { key: it.key, group: groupOf(it), name: String(it.name).trim() };
+      }),
+      requiredRate: rateOf(common, entry.homework, 'required'),
+      optionalRate: rateOf(common, entry.homework, 'optional'),
+      /* 옛 요일 방식 자료를 다시 그릴 때만 쓰인다 */
       submitRate: submitRateOf(entry.homework),
       onTimeRate: clampPct(entry.onTimeRate == null ? 100 : entry.onTimeRate),
       /* 레포트에는 코멘트가 한 칸만 나온다.
@@ -142,11 +150,54 @@
     return n < 0 ? 0 : n > 100 ? 100 : n;
   }
 
-  /* 요일 체크에서 제출률을 자동 계산한다 (3개 체크 → 60%) */
+  /* ============================================================
+     과제
+
+     반 공통에 항목을 적고(이름), 학생마다 체크한다. 리뷰테스트와 같다.
+       반 공통  [{key:'h1', group:'required', name:'문학 주간지'}, …]
+       학생     {h1:true, h3:false}
+
+     예전에는 월~금 요일 체크였다. 지난 주차 자료에는 그 모양이
+     그대로 남아 있으므로 읽을 줄 알아야 한다. (legacyDays)
+     ============================================================ */
+
+  var DAYS = ['월', '화', '수', '목', '금'];
+
+  /* 이 학생 기록이 옛 요일 방식인가 */
+  function isLegacyHomework(hw) {
+    if (!hw) return false;
+    for (var i = 0; i < DAYS.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(hw, DAYS[i])) return true;
+    }
+    return false;
+  }
+
+  /* 반 공통 과제 목록에서 한 묶음만 골라 온다 */
+  function homeworkItems(common, group) {
+    var list = (common && common.homework) || [];
+    if (!Array.isArray(list)) return [];
+    return list.filter(function (it) {
+      if (!it || !it.key || !String(it.name || '').trim()) return false;
+      return !group || groupOf(it) === group;
+    });
+  }
+
+  function groupOf(it) {
+    return (it && it.group === 'optional') ? 'optional' : 'required';
+  }
+
+  /* 한 묶음의 제출률. 항목이 없으면 -1 (화면에 안 그린다) */
+  function rateOf(common, hw, group) {
+    var items = homeworkItems(common, group);
+    if (!items.length) return -1;
+    var done = items.filter(function (it) { return hw && hw[it.key]; }).length;
+    return Math.round(done / items.length * 100);
+  }
+
+  /* 옛 요일 방식의 제출률 — 지난 주차를 다시 그릴 때만 쓴다 */
   function submitRateOf(hw) {
-    var days = ['월', '화', '수', '목', '금'];
-    var done = days.filter(function (d) { return hw && hw[d]; }).length;
-    return Math.round(done / days.length * 100);
+    var done = DAYS.filter(function (d) { return hw && hw[d]; }).length;
+    return Math.round(done / DAYS.length * 100);
   }
 
   global.Report = {
@@ -158,6 +209,10 @@
     toReportData: toReportData,
     commentFor: commentFor,
     submitRateOf: submitRateOf,
+    homeworkItems: homeworkItems,
+    groupOf: groupOf,
+    rateOf: rateOf,
+    isLegacyHomework: isLegacyHomework,
     todayISO: todayISO
   };
 

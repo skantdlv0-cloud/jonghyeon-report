@@ -141,7 +141,7 @@
       if (!cls || cls === '_') return;
       var c = draft.common[cls];
       jobs.push(global.DB.saveWeekCommon(draft.weekStart, draft.weekEnd, cls,
-                                         c.lessons, c.tests, c.comment));
+                                         c.lessons, c.tests, c.comment, c.homework));
     });
 
     jobs.push(global.DB.saveEntries(draft.weekStart, draft.entries, ids));
@@ -903,7 +903,7 @@
           report.commons++;
           var c = draft.common[cls];
           jobs.push(global.DB.saveWeekCommon(draft.weekStart, draft.weekEnd, cls,
-                                         c.lessons, c.tests, c.comment));
+                                         c.lessons, c.tests, c.comment, c.homework));
         });
         report.entries = Object.keys(draft.entries || {}).length;
         jobs.push(global.DB.saveEntries(draft.weekStart, draft.entries, ids));

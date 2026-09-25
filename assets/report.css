@@ -341,13 +341,78 @@ body {
 }
 
 /* ============================================================
-   과제 제출률 — 원형 게이지 둘
+   과제 수행 — 필수/선택 항목
+
+   ⚠ 위의 .homework-days / .hw-day / .hw-circle 은 지우지 않는다.
+   이미 학부모님께 보낸 레포트들이 그 모양으로 그려져 있고,
+   그 파일들은 이 css 를 함께 쓴다. 여기에는 새 것만 더한다.
+   ============================================================ */
+.hw-group + .hw-group { margin-top: 14px; }
+
+.hw-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.hw-group__title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink-mid);
+}
+.hw-group--optional .hw-group__title { color: var(--ink-light); }
+.hw-group__count {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-light);
+}
+
+.hw-list { display: grid; gap: 7px; }
+
+.hw-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  background: var(--grad-soft);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink-light);
+  line-height: 1.5;
+}
+.hw-item.is-done { color: var(--ink-deep); font-weight: 600; }
+
+.hw-mark {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: #E9EBF5;
+  color: #A3AAC6;
+}
+.hw-item.is-done .hw-mark {
+  background: var(--grad-strong);
+  color: #fff;
+}
+.hw-name { flex: 1 1 auto; min-width: 0; }
+
+/* ============================================================
+   과제 제출률 — 원형 게이지
    ============================================================ */
 .rate-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+/* 한 묶음만 있을 때(선택과제를 안 냈다든지) 가운데 하나만 */
+.rate-grid--one { grid-template-columns: minmax(0, 240px); justify-content: center; }
 .rate-circle-wrapper {
   background: var(--grad-soft);
   border-radius: 18px;

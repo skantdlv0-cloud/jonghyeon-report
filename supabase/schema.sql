@@ -114,6 +114,8 @@ create table if not exists public.week_common (
   tests       jsonb not null default '[]'::jsonb,  -- ["문법 리뷰테스트", …]
   -- 반 공통 코멘트. 학생 코멘트가 비면 이 글이 그 자리에 나간다. (migration-004)
   comment     text not null default '',
+  -- 과제 목록. [{key,group:required|optional,name}] (migration-005)
+  homework    jsonb not null default '[]'::jsonb,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -158,7 +160,7 @@ create table if not exists public.entries (
   attend_note    text not null default '',
   focus_score    smallint not null default 0,
   scores         jsonb not null default '{}'::jsonb, -- {"0":95,"1":88}
-  homework       jsonb not null default '{}'::jsonb, -- {"월":true,…}
+  homework       jsonb not null default '{}'::jsonb, -- {"h1":true,…} (옛 자료는 {"월":true,…})
   on_time_rate   smallint not null default 100,
   comment        text not null default '',
   created_at     timestamptz not null default now(),
