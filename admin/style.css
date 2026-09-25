@@ -806,6 +806,47 @@ dialog.modal::backdrop { background: rgba(51, 58, 87, .38); backdrop-filter: blu
 }
 .comment-btn__count { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-light); font-weight: 700; }
 
+/* 반 공통 코멘트를 그대로 쓰는 학생 — 개별로 쓴 학생과 한눈에 갈리게 */
+.comment-btn.is-shared {
+  background: #EFEDFB;              /* 반 칸 칩과 같은 보라 계열 */
+  border-color: #D8D4F0;
+  color: var(--ink-mid);
+}
+.comment-btn.is-shared:hover { border-color: #C0B8EA; }
+
+/* ---- 코멘트 창 위쪽 '지금 무엇을 쓰는 중인가' 줄 ---- */
+.cmt-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #EFEDFB;
+  border: 1px solid #D8D4F0;
+}
+.cmt-mode.is-own {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+.cmt-mode__tag {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #D8D4F0;
+  color: var(--ink-mid);
+}
+.cmt-mode.is-own .cmt-mode__tag { border-color: var(--line); color: var(--ink-deep); }
+.cmt-mode__desc { font-size: 12.5px; color: var(--ink-light); }
+
+@media (max-width: 720px) {
+  .cmt-mode__desc { width: 100%; }
+}
+
 .muted-note { font-size: 12.5px; color: var(--ink-light); }
 
 .chk-inline {

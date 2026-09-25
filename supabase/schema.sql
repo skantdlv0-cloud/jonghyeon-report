@@ -112,6 +112,8 @@ create table if not exists public.week_common (
   class_name  text not null,
   lessons     jsonb not null default '[]'::jsonb,  -- ["1차시 내용", …]
   tests       jsonb not null default '[]'::jsonb,  -- ["문법 리뷰테스트", …]
+  -- 반 공통 코멘트. 학생 코멘트가 비면 이 글이 그 자리에 나간다. (migration-004)
+  comment     text not null default '',
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

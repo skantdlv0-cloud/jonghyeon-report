@@ -53,7 +53,18 @@
     };
   }
 
-  function emptyCommon() { return { lessons: [''], tests: [''] }; }
+  function emptyCommon() { return { lessons: [''], tests: [''], comment: '' }; }
+
+  /* 이 학생 레포트에 실제로 들어갈 코멘트와 그 출처.
+     학생 코멘트에 글이 있으면 그것, 비어 있으면 반 공통.
+     레포트를 만드는 report.js 의 commentFor 와 같은 규칙이다. */
+  function commentOf(studentId) {
+    var s = students().find(function (x) { return x.id === studentId; });
+    var own = (entryOf(studentId).comment || '').trim();
+    if (own) return { text: own, shared: false };
+    var shared = ((commonOf((s && s.className) || '_').comment) || '').trim();
+    return { text: shared, shared: true };
+  }
 
   function loadDraft() {
     var d = Store.read(Store.KEYS.draft, null);
@@ -248,6 +259,27 @@
      반 공통 — 수업 내용 · 테스트 이름
      ============================================================ */
 
+  function renderCommonComment() {
+    var c = commonOf(currentClass || '_');
+    var ta = $('#commonComment');
+    if (ta.value !== (c.comment || '')) ta.value = c.comment || '';
+
+    var n = (c.comment || '').length;
+    $('#commonCommentCount').textContent = n + '자';
+
+    /* 이 반에서 몇 명이 공통을 쓰고 있는지 */
+    var list = studentsOfClass(currentClass);
+    var shared = list.filter(function (s) {
+      return !((entryOf(s.id).comment || '').trim());
+    }).length;
+
+    $('#commonCommentUse').textContent = !list.length ? ''
+      : n ? shared + ' / ' + list.length + '명이 이 글을 씁니다'
+          : (shared < list.length
+              ? (list.length - shared) + '명은 따로 썼습니다'
+              : '비어 있으면 코멘트 칸이 레포트에 안 나옵니다');
+  }
+
   function renderCommon() {
     $('#commonTitle').textContent = currentClass ? currentClass + ' 공통' : '반 공통';
     var c = commonOf(currentClass || '_');
@@ -265,6 +297,8 @@
       row.querySelector('input').value = text || '';
       lessons.appendChild(row);
     });
+
+    renderCommonComment();
 
     var tests = $('#testList');
     tests.textContent = '';
@@ -329,6 +363,20 @@
     renderCommon();
     renderEntries();
     schedulePreview();
+  });
+
+  $('#commonComment').addEventListener('input', function (e) {
+    /* 읽는 쪽(renderCommonComment)과 같은 자리를 써야 한다.
+       반이 아직 안 골라졌으면 양쪽 다 '_' 를 쓴다. */
+    commonOf(currentClass || '_').comment = e.target.value;
+    renderCommonComment();
+    renderEntries();          /* 공통을 쓰는 학생 카드의 미리보기가 같이 바뀐다 */
+    saveDraft();
+  });
+
+  /* 폰에서 길게 쓰기 — 코멘트 모달을 반 공통 모드로 연다 */
+  $('#btnCommonCommentBig').addEventListener('click', function () {
+    openCommentModal('', { classComment: true });
   });
 
   $('#btnAddLesson').addEventListener('click', function () {
@@ -477,9 +525,14 @@
     el.querySelector('[data-role="rate"]').textContent =
       '제출률 ' + Report.submitRateOf(e.homework) + '%';
 
-    var txt = (e.comment || '').trim();
+    var c = commentOf(s.id);
+    var txt = c.text;
+    var btn = el.querySelector('.comment-btn');
+    btn.classList.toggle('is-shared', c.shared && !!txt);
     el.querySelector('.comment-btn__text').textContent =
-      txt ? txt.replace(/\s+/g, ' ').slice(0, 40) + (txt.length > 40 ? '…' : '') : '코멘트 작성';
+      txt ? (c.shared ? '[반 공통] ' : '') +
+            txt.replace(/\s+/g, ' ').slice(0, 36) + (txt.length > 36 ? '…' : '')
+          : '코멘트 작성';
     el.querySelector('.comment-btn__count').textContent = txt ? txt.length + '자' : '';
   }
 
@@ -682,13 +735,34 @@
 
   var commentModal = $('#commentModal');
 
-  function openCommentModal(id) {
-    commentTargetId = id;
-    var s = students().find(function (x) { return x.id === id; });
-    var e = entryOf(id);
+  /* 코멘트 창은 두 가지로 열린다.
+       반 공통  — 이 반 전원에게 들어갈 글
+       학생 개별 — 그 학생만 따로 쓰는 글 (비우면 반 공통으로 돌아간다) */
+  var commentIsClass = false;
+  /* 학생 창에서 '이 학생만' 을 고른 상태인가.
+     비어 있는 개별 코멘트는 만들 수 없으므로(비면 공통으로 돌아간다)
+     저장할 때 이 값과 글 내용을 같이 본다. */
+  var commentOwnMode = false;
 
-    $('#commentWho').textContent = (s ? s.name + ' 학생 ' : '') + '코멘트';
-    $('#commentText').value = e.comment || '';
+  function openCommentModal(id, opts) {
+    opts = opts || {};
+    commentIsClass = !!opts.classComment;
+    commentTargetId = commentIsClass ? '' : id;
+
+    if (commentIsClass) {
+      $('#commentWho').textContent = (currentClass || '') + ' 반 공통 코멘트';
+      $('#commentText').value = commonOf(currentClass || '_').comment || '';
+      $('#commentMode').hidden = true;
+    } else {
+      var s = students().find(function (x) { return x.id === id; });
+      var own = (entryOf(id).comment || '').trim();
+      $('#commentWho').textContent = (s ? s.name + ' 학생 ' : '') + '코멘트';
+      /* 공통을 쓰는 중이면 그 글을 보여 준다. 그대로 저장하면 공통인 채로 남는다. */
+      commentOwnMode = !!own;
+      $('#commentText').value = own || (commonOf((s && s.className) || '_').comment || '');
+      renderCommentMode();
+    }
+
     updateCommentCount();
     renderInfoBar();
     renderSnipBar();
@@ -697,11 +771,69 @@
     setTimeout(function () { $('#commentText').focus(); }, 40);
   }
 
+  /* 창 위쪽의 '지금 무엇을 쓰는 중인가' 줄 */
+  function renderCommentMode() {
+    var bar = $('#commentMode');
+    if (commentIsClass || !commentTargetId) { bar.hidden = true; return; }
+
+    var s = students().find(function (x) { return x.id === commentTargetId; });
+    var shared = (commonOf((s && s.className) || '_').comment || '').trim();
+    var own = commentOwnMode;
+
+    bar.hidden = false;
+    bar.classList.toggle('is-own', own);
+
+    if (own) {
+      $('#commentModeTag').textContent = '이 학생만';
+      $('#commentModeDesc').textContent = shared
+        ? '반 공통 대신 이 글이 나갑니다'
+        : '이 학생에게만 나갑니다';
+    } else {
+      $('#commentModeTag').textContent = '반 공통';
+      $('#commentModeDesc').textContent = shared
+        ? '이 반 전원과 같은 글이 나갑니다'
+        : '반 공통이 비어 있어 코멘트 칸이 안 나옵니다';
+    }
+
+    $('#btnCommentOwn').hidden = own;
+    $('#btnCommentShared').hidden = !own;
+  }
+
+  /* [이 학생만 고치기] — 보이는 글을 밑글 삼아 이 학생 것으로 쓴다.
+     저장을 눌러야 실제로 반영된다. */
+  $('#btnCommentOwn').addEventListener('click', function () {
+    commentOwnMode = true;
+    renderCommentMode();
+    toast('이 학생만 쓰는 중입니다 — 고치고 저장을 누르세요');
+    setTimeout(function () { $('#commentText').focus(); }, 40);
+  });
+
+  /* [공통으로 되돌리기] — 반 공통 글을 다시 불러온다 */
+  $('#btnCommentShared').addEventListener('click', function () {
+    var s = students().find(function (x) { return x.id === commentTargetId; });
+    commentOwnMode = false;
+    $('#commentText').value = commonOf((s && s.className) || '_').comment || '';
+    updateCommentCount();
+    renderCommentMode();
+    toast('반 공통으로 되돌립니다 — 저장을 누르세요');
+  });
+
   function updateCommentCount() {
     var t = $('#commentText').value;
     $('#commentCount').textContent = t.length + '자';
 
     var s = students().find(function (x) { return x.id === commentTargetId; });
+
+    /* 학생 창에서 공통과 다르게 고치기 시작하면 저절로 '이 학생만' 이 된다.
+       단추를 따로 누르지 않아도 된다. */
+    if (!commentIsClass && commentTargetId && !commentOwnMode) {
+      var shared = (commonOf((s && s.className) || '_').comment || '');
+      if (t !== shared && t.trim()) {
+        commentOwnMode = true;
+        renderCommentMode();
+      }
+    }
+
     var warns = checkText(t, s ? s.name : '');
     var box = $('#commentWarn');
     if (warns.length) {
@@ -720,13 +852,39 @@
 
   $('#commentForm').addEventListener('submit', function (e) {
     e.preventDefault();
-    var en = entryOf(commentTargetId);
-    en.comment = $('#commentText').value;
+
+    if (commentIsClass) {
+      commonOf(currentClass || '_').comment = $('#commentText').value;
+      saveDraft();
+      commentModal.close();
+      renderCommon();
+      renderEntries();
+      toast('반 공통 코멘트를 저장했습니다', 'good');
+      return;
+    }
+
+    /* 학생 창에서 저장하면 그 학생 것이 된다.
+       비우고 저장하면 반 공통으로 돌아간다. */
+    var v = $('#commentText').value;
+    var s = students().find(function (x) { return x.id === commentTargetId; });
+    var shared = (commonOf((s && s.className) || '_').comment || '');
+
+    /* 공통으로 돌아가는 경우
+         · '공통으로 되돌리기' 를 골랐다
+         · 글을 비웠다 (빈 개별 코멘트는 만들 수 없다)
+         · 공통과 글자 하나 다르지 않다 (굳이 따로 둘 이유가 없다) */
+    var backToShared = !commentOwnMode || !v.trim() || v === shared;
+
+    entryOf(commentTargetId).comment = backToShared ? '' : v;
     saveDraft();
     commentModal.close();
     renderEntries();
+    renderCommonComment();
     selectStudent(commentTargetId);
-    toast('코멘트를 저장했습니다', 'good');
+
+    toast(backToShared
+      ? (shared.trim() ? '반 공통 코멘트를 씁니다' : '코멘트를 비웠습니다')
+      : '이 학생 코멘트를 저장했습니다', 'good');
   });
 
   function renderSnipBar() {
@@ -978,7 +1136,8 @@
     /* 맞춤법 확인 */
     var warns = [];
     list.forEach(function (s) {
-      checkText(entryOf(s.id).comment, s.name).forEach(function (w) {
+      /* 실제로 나갈 글을 본다. 반 공통을 쓰는 학생도 검사 대상이다. */
+      checkText(commentOf(s.id).text, s.name).forEach(function (w) {
         warns.push({ name: s.name, found: w.found, suggest: w.suggest });
       });
     });

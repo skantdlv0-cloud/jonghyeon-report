@@ -21,7 +21,7 @@
     /* 로그인 화면 왼쪽 아래에 보인다.
        admin 파일을 고칠 때마다 이 값과 index.html 의 ?v= 를 함께 올린다.
        안 올리면 깃허브 페이지스 캐시 때문에 최대 10분간 옛 파일이 나간다. */
-    version: '20260925d',
+    version: '20260925e',
 
     /* 배포 주소. 끝에 / 를 붙이지 않는다. */
     siteUrl: 'https://skantdlv0-cloud.github.io/jonghyeon-report',

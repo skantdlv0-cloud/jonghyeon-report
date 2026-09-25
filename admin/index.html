@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="style.css?v=20260925d">
+<link rel="stylesheet" href="style.css?v=20260925e">
 </head>
 <body class="is-locked">
 
@@ -297,6 +297,21 @@
             <button class="btn btn--sm" id="btnAddTest" type="button">+ 테스트 추가</button>
           </div>
           <div id="testList"></div>
+        </div>
+
+        <div class="sub">
+          <div class="sub__head">
+            <span class="sub__title">반 공통 코멘트</span>
+            <span class="sub__hint" id="commonCommentHint">여기 쓰면 이 반 전원 레포트에 똑같이 들어갑니다</span>
+            <div class="spacer"></div>
+            <button class="btn btn--sm btn--ghost" id="btnCommonCommentBig" type="button">크게 쓰기</button>
+          </div>
+          <textarea class="textarea" id="commonComment" rows="4"
+                    placeholder="이번 주 이 반 전체에게 하고 싶은 말을 적으세요&#10;학생마다 따로 쓸 말은 아래 학생 카드에서 고치면 됩니다"></textarea>
+          <div class="count-row">
+            <span id="commonCommentCount">0자</span>
+            <span class="sub__hint" id="commonCommentUse"></span>
+          </div>
         </div>
       </div>
 
@@ -715,6 +730,15 @@
       <p class="modal__desc">줄바꿈은 레포트에 그대로 나옵니다</p>
     </div>
     <div class="modal__body">
+      <!-- 반 공통을 쓰는 중인지, 이 학생만 따로 쓰는 중인지 -->
+      <div class="cmt-mode" id="commentMode" hidden>
+        <span class="cmt-mode__tag" id="commentModeTag"></span>
+        <span class="cmt-mode__desc" id="commentModeDesc"></span>
+        <div class="spacer"></div>
+        <button class="btn btn--sm" type="button" id="btnCommentOwn">이 학생만 고치기</button>
+        <button class="btn btn--sm btn--ghost" type="button" id="btnCommentShared">공통으로 되돌리기</button>
+      </div>
+
       <!-- 이 학생의 '내가 만든 칸' 값. 눌러서 코멘트에 넣는다. -->
       <div class="info-bar" id="infoBar" hidden></div>
       <div class="snip-bar" id="snipBar"></div>
@@ -817,17 +841,17 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
 <!-- config.js 와 brand.js 가 먼저 와야 한다. 나머지가 이 값을 읽는다. -->
-<script src="config.js?v=20260925d"></script>
-<script src="../assets/brand.js?v=20260925d"></script>
-<script src="supabase.js?v=20260925d"></script>
-<script src="db.js?v=20260925d"></script>
-<script src="github.js?v=20260925d"></script>
-<script src="store.js?v=20260925d"></script>
-<script src="report.js?v=20260925d"></script>
-<script src="app.js?v=20260925d"></script>
-<script src="write.js?v=20260925d"></script>
-<script src="publish.js?v=20260925d"></script>
-<script src="send.js?v=20260925d"></script>
-<script src="auth.js?v=20260925d"></script>
+<script src="config.js?v=20260925e"></script>
+<script src="../assets/brand.js?v=20260925e"></script>
+<script src="supabase.js?v=20260925e"></script>
+<script src="db.js?v=20260925e"></script>
+<script src="github.js?v=20260925e"></script>
+<script src="store.js?v=20260925e"></script>
+<script src="report.js?v=20260925e"></script>
+<script src="app.js?v=20260925e"></script>
+<script src="write.js?v=20260925e"></script>
+<script src="publish.js?v=20260925e"></script>
+<script src="send.js?v=20260925e"></script>
+<script src="auth.js?v=20260925e"></script>
 </body>
 </html>

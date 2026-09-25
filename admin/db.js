@@ -247,7 +247,10 @@
          명단 저장이 실패하지 않도록 있는지 미리 살핀다. */
       optional('students.student_phone', c.from('students').select('student_phone').limit(1)),
       /* migration-003 이 만드는 표. 주차 종료일이 여기 한 줄로 들어 있다. */
-      optional('week_meta', c.from('week_meta').select('*'))
+      optional('week_meta', c.from('week_meta').select('*')),
+      /* migration-004 가 만드는 칸. 배포가 SQL 보다 먼저 나가도
+         반 공통 저장이 실패하지 않도록 있는지 미리 살핀다. */
+      optional('week_common.comment', c.from('week_common').select('comment').limit(1))
     ]).then(function (res) {
       res.forEach(function (r) {
         if (r.error) throw new Error('불러오기 실패: ' + r.error.message);
@@ -263,7 +266,9 @@
         common[r.week_start] = common[r.week_start] || {};
         common[r.week_start][r.class_name] = {
           lessons: r.lessons || [''],
-          tests: r.tests || ['']
+          tests: r.tests || [''],
+          /* 반 공통 코멘트. migration-004 전에는 칸이 없어 undefined 로 온다. */
+          comment: r.comment || ''
         };
         /* week_meta 가 없던 시절 자료를 위한 대비책.
            week_meta 에 줄이 있으면 아래에서 덮어쓴다. */
@@ -378,15 +383,23 @@
     }, { onConflict: 'week_start' }).then(check);
   }
 
-  function saveWeekCommon(weekStart, weekEnd, className, lessons, tests) {
+  /* migration-004 가 만드는 칸이 있는가.
+     없으면 comment 를 빼고 저장한다. 안 그러면 저장이 통째로 실패한다. */
+  function hasClassComment() {
+    return missingTables.indexOf('week_common.comment') === -1;
+  }
+
+  function saveWeekCommon(weekStart, weekEnd, className, lessons, tests, comment) {
     if (!weekStart || !className) return Promise.resolve();
-    return sb().from('week_common').upsert({
+    var row = {
       week_start: weekStart,
       week_end: weekEnd || weekStart,
       class_name: className,
       lessons: lessons || [],
       tests: tests || []
-    }, { onConflict: 'week_start,class_name' }).then(check);
+    };
+    if (hasClassComment()) row.comment = comment || '';
+    return sb().from('week_common').upsert(row, { onConflict: 'week_start,class_name' }).then(check);
   }
 
   function saveEntries(weekStart, entryMap, studentIds) {

@@ -121,8 +121,20 @@
       homework: entry.homework || {},
       submitRate: submitRateOf(entry.homework),
       onTimeRate: clampPct(entry.onTimeRate == null ? 100 : entry.onTimeRate),
-      comment: (entry.comment || '').trim()
+      /* 레포트에는 코멘트가 한 칸만 나온다.
+         학생 코멘트가 비어 있으면 그 자리에 반 공통 코멘트가 들어간다. */
+      comment: commentFor(common, entry)
     };
+  }
+
+  /* 이 학생 레포트에 들어갈 코멘트.
+       학생 코멘트에 글이 있다 → 그 학생 것
+       비어 있다              → 반 공통 코멘트
+     화면에서도 같은 규칙을 쓴다. (write.js 의 commentOf) */
+  function commentFor(common, entry) {
+    var own = ((entry && entry.comment) || '').trim();
+    if (own) return own;
+    return (((common && common.comment) || '')).trim();
   }
 
   function clampPct(v) {
@@ -144,6 +156,7 @@
     buildPath: buildPath,
     randomSuffix: randomSuffix,
     toReportData: toReportData,
+    commentFor: commentFor,
     submitRateOf: submitRateOf,
     todayISO: todayISO
   };
