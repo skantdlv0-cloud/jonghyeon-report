@@ -83,8 +83,9 @@
   /* 칸 목록 전체 맞추기.
      학생 명단과 달리 여기서는 빈 목록도 허용한다.
      칸을 다 지우는 것은 자연스러운 조작이고, 지워도 학생 자료(extra)는 남는다. */
-  function syncFieldDefs(list) {
+  function syncFieldDefs(list, opts) {
     var c = sb();
+    opts = opts || {};
 
     /* scope 칸이 아직 없으면(SQL 미실행) 서버로 보내지 않는다.
        보내면 오류가 나고, scope 를 빼고 보내면 반 칸이 학생 칸으로 둔갑한다.
@@ -96,6 +97,23 @@
     var rows = (list || []).map(toDbField);
 
     if (!rows.length) {
+      /* 빈 목록으로 서버를 비우는 것은 칸 관리에서 직접 지웠을 때만 한다.
+
+         예전에 백업 복원이 빈 목록을 보내 서버의 칸 정의가 통째로 날아갔다.
+         값(class_info.extra, students.extra)은 남아 있었지만 보여 줄 칸이
+         없어져서 반 현황이 사라진 것처럼 보였다.
+
+         그래서 허락 없이 들어온 빈 목록은 지우지 않고, 서버에 몇 개가
+         남아 있는지 세어 알려 준다. */
+      if (!opts.allowClear) {
+        return c.from('field_defs').select('id')
+          .then(check)
+          .then(function (res) {
+            var n = (res.data || []).length;
+            if (!n) return { skipped: true, serverCount: 0 };
+            return { skipped: true, refusedClear: true, serverCount: n };
+          });
+      }
       return c.from('field_defs')
         .delete().neq('id', '00000000-0000-0000-0000-000000000000').then(check);
     }

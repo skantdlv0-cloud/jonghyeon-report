@@ -1238,7 +1238,7 @@
     var weeks = Object.keys(payload.sent || {}).length;
 
     function apply() {
-      Store.restorePayload(payload);
+      var r = Store.restorePayload(payload) || { restored: [] };
       students = Store.getStudents();
       fields = Store.getFieldDefs('student');
       classFields = Store.getFieldDefs('class');
@@ -1249,7 +1249,20 @@
       $('#searchInput').value = '';
       collapseIfCrowded();
       render();
+
       toast('학생 ' + n + '명' + (weeks ? ' · 발송 기록 ' + weeks + '주차' : '') + ' 불러왔습니다', 'good');
+
+      /* 옛 형식 백업에는 칸 정의·반 현황이 들어 있지 않다.
+         그건 이 기기 것을 그대로 두었다는 뜻이므로 말해 준다.
+         (예전에는 말없이 빈 값으로 덮어써서 반 현황이 사라졌다) */
+      if (r.skippedFieldDefs || r.skippedClassInfo) {
+        var keep = [];
+        if (r.skippedFieldDefs) keep.push('칸 정의');
+        if (r.skippedClassInfo) keep.push('반 현황');
+        setTimeout(function () {
+          toast(keep.join('·') + '은 이 백업에 없어 지금 것을 그대로 두었습니다', 'warn');
+        }, 2600);
+      }
     }
 
     if (!students.length) { apply(); return; }

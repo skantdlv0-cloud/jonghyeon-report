@@ -84,6 +84,10 @@
     });
   }
 
+  /* 칸 관리에서 직접 지울 때만 잠깐 켜진다. saveFieldDefs 를 보라.
+     이게 꺼져 있는데 빈 목록이 오면 서버를 비우지 않는다. */
+  var fieldClearOk = false;
+
   /* 같은 종류의 저장이 연달아 오면 마지막 것만 보낸다 */
   function queueSync(label, delay, fn) {
     if (!syncEnabled || !global.DB) return;
@@ -102,7 +106,13 @@
       queueSync('draft', 800, function () { return pushDraft(value); });
 
     } else if (key === KEYS.fieldDefs) {
-      queueSync('fieldDefs', 500, function () { return global.DB.syncFieldDefs(value); });
+      /* '칸이 하나도 없다' 는 목록으로 서버를 비우는 것은 칸 관리에서 직접
+         지웠을 때만 허용한다. 지금 값을 잡아 둔다 — 디바운스가 끝난 뒤에
+         읽으면 이미 꺼져 있다. */
+      var allowClear = fieldClearOk;
+      queueSync('fieldDefs', 500, function () {
+        return global.DB.syncFieldDefs(value, { allowClear: allowClear });
+      });
 
     } else if (key === KEYS.classInfo) {
       queueSync('classInfo', 500, function () { return global.DB.syncClassInfo(value); });
@@ -334,7 +344,16 @@
       others.forEach(function (f, i) { f.sortOrder = i; });
       next = others.concat(mine);
     }
-    return write(KEYS.fieldDefs, next);
+
+    /* 여기는 사람이 칸 관리에서 직접 지운 경우다. 마지막 칸까지 지워
+       목록이 비면 서버도 비우는 게 맞다. 다른 경로(백업 복원 등)에서
+       빈 목록이 오는 것과 구분하려고 잠깐만 켠다. */
+    fieldClearOk = true;
+    try {
+      return write(KEYS.fieldDefs, next);
+    } finally {
+      fieldClearOk = false;
+    }
   }
 
   /* 칸 이름은 한글이라 그대로 키로 쓸 수 없다(서버가 영문 키만 받는다).
@@ -499,6 +518,13 @@
         throw new Error('이 파일은 백업 파일이 아닙니다.');
       }
 
+      /* 백업에 들어 있는 것만 넘긴다.
+         없는 항목은 undefined 로 두어야 한다. 여기서 빈 값([] 이나 {})을 만들어
+         넘기면 restorePayload 가 그것으로 덮어쓴다.
+
+         예전에 fieldDefs·classInfo 가 이 목록에서 빠져 있었다. 내보낼 때는
+         담기는데 불러올 때 사라져서, 백업을 되살리면 칸 정의가 빈 배열로
+         덮이고 서버의 field_defs 까지 통째로 지워졌다. (반 현황이 날아간 원인) */
       function normalize(payload) {
         if (!Array.isArray(payload.students)) throw new Error('명단이 들어 있지 않습니다.');
         return {
@@ -507,6 +533,9 @@
           sent:      payload.sent      || {},
           published: payload.published || {},
           snippets:  payload.snippets  || [],
+          fieldDefs: Array.isArray(payload.fieldDefs) ? payload.fieldDefs : undefined,
+          classInfo: (payload.classInfo && typeof payload.classInfo === 'object')
+                       ? payload.classInfo : undefined,
           draft:     payload.draft     || null,
           queue:     payload.queue     || {},
           history:   payload.history   || {}
@@ -535,17 +564,40 @@
   }
 
   /* 백업에서 읽은 내용을 이 기기에 복원한다 */
+  /* 백업에서 읽은 내용을 이 기기에 복원한다.
+
+     백업에 없는 항목은 건드리지 않는다. 옛 형식 백업(students-backup)에는
+     칸 정의가 아예 없는데, 그걸 빈 값으로 덮으면 지금 쓰고 있는 칸이 사라진다.
+     돌려준 목록은 '무엇을 되살렸는지' 화면에서 알려 주는 데 쓴다. */
   function restorePayload(p) {
+    var done = [];
+
     saveStudents(p.students || []);
+    done.push('명단 ' + (p.students || []).length + '명');
+
     write(KEYS.settings,  p.settings  || {});
     write(KEYS.sent,      p.sent      || {});
     write(KEYS.published, p.published || {});
     write(KEYS.snippets,  p.snippets  || []);
-    write(KEYS.fieldDefs, p.fieldDefs || []);
-    write(KEYS.classInfo, p.classInfo || {});
     write(KEYS.queue,     p.queue     || {});
     write(KEYS.history,   p.history   || {});
+
+    if (p.fieldDefs) {
+      write(KEYS.fieldDefs, p.fieldDefs);
+      done.push('칸 정의 ' + p.fieldDefs.length + '개');
+    }
+    if (p.classInfo) {
+      write(KEYS.classInfo, p.classInfo);
+      done.push('반 현황 ' + Object.keys(p.classInfo).length + '개 반');
+    }
+
     if (p.draft) write(KEYS.draft, p.draft); else remove(KEYS.draft);
+
+    return {
+      restored: done,
+      skippedFieldDefs: !p.fieldDefs,
+      skippedClassInfo: !p.classInfo
+    };
   }
 
   /* ---------- 날짜 ---------- */
