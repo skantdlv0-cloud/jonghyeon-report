@@ -11,16 +11,16 @@
 --
 --     순서  항목                      결과     판정
 --     ----  ------------------------  -------  ----
---      1    표가 만들어졌나            9 / 9    OK
---      2    자물쇠(RLS)가 켜졌나       9 / 9    OK
---      3    로그인한 사람만 보는 규칙   9 / 9    OK
+--      1    표가 만들어졌나            10 / 10  OK
+--      2    자물쇠(RLS)가 켜졌나       10 / 10  OK
+--      3    로그인한 사람만 보는 규칙   10 / 10  OK
 --
 --  하나라도 'OK 아님' 이면 schema.sql 을 다시 한 번 Run 한다.
 --  (여러 번 실행해도 자료가 지워지지 않는다)
 -- ============================================================
 
 with want(name) as (
-  values ('students'), ('field_defs'), ('week_common'), ('entries'),
+  values ('students'), ('field_defs'), ('week_common'), ('week_meta'), ('entries'),
          ('published'), ('sent'), ('snippets'), ('app_settings'), ('class_info')
 ),
 have as (
@@ -40,22 +40,22 @@ select 순서, 항목, 결과, 판정 from (
 
   select 1 as 순서,
          '표가 만들어졌나' as 항목,
-         (select count(*) from have)::text || ' / 9' as 결과,
-         case when (select count(*) from have) = 9
+         (select count(*) from have)::text || ' / 10' as 결과,
+         case when (select count(*) from have) = 10
               then 'OK' else 'OK 아님 — schema.sql 다시 Run' end as 판정
 
   union all
   select 2,
          '자물쇠(RLS)가 켜졌나',
-         (select count(*) from have where rowsecurity)::text || ' / 9',
-         case when (select count(*) from have where rowsecurity) = 9
+         (select count(*) from have where rowsecurity)::text || ' / 10',
+         case when (select count(*) from have where rowsecurity) = 10
               then 'OK' else 'OK 아님 — schema.sql 다시 Run' end
 
   union all
   select 3,
          '로그인한 사람만 보는 규칙',
-         (select count(*) from pol)::text || ' / 9',
-         case when (select count(*) from pol) = 9
+         (select count(*) from pol)::text || ' / 10',
+         case when (select count(*) from pol) = 10
               then 'OK' else 'OK 아님 — schema.sql 다시 Run' end
 
 ) x

@@ -245,7 +245,9 @@
       optional('field_defs.scope', c.from('field_defs').select('scope').limit(1)),
       /* migration-001 이 만드는 칸. 배포가 SQL 보다 먼저 나가도
          명단 저장이 실패하지 않도록 있는지 미리 살핀다. */
-      optional('students.student_phone', c.from('students').select('student_phone').limit(1))
+      optional('students.student_phone', c.from('students').select('student_phone').limit(1)),
+      /* migration-003 이 만드는 표. 주차 종료일이 여기 한 줄로 들어 있다. */
+      optional('week_meta', c.from('week_meta').select('*'))
     ]).then(function (res) {
       res.forEach(function (r) {
         if (r.error) throw new Error('불러오기 실패: ' + r.error.message);
@@ -263,14 +265,24 @@
           lessons: r.lessons || [''],
           tests: r.tests || ['']
         };
-        weeks[r.week_start] = r.week_end;
+        /* week_meta 가 없던 시절 자료를 위한 대비책.
+           week_meta 에 줄이 있으면 아래에서 덮어쓴다. */
+        if (!weeks[r.week_start] || r.week_end > weeks[r.week_start]) {
+          weeks[r.week_start] = r.week_end;
+        }
       });
 
       /* 학생별 입력 → { '2026-06-01': { studentId: entry } } */
       var entries = {};
+      /* 마지막으로 손댄 주차. 로그인하면 이 주차를 연다.
+         예전에는 시작일이 가장 늦은 주차를 열었는데, 날짜를 잘못 골라
+         생긴 엉뚱한 주차가 있으면 로그인할 때마다 거기로 들어갔다. */
+      var latestWeek = '', latestAt = '';
       res[3].data.forEach(function (r) {
         entries[r.week_start] = entries[r.week_start] || {};
         entries[r.week_start][r.student_id] = fromDbEntry(r);
+        var at = r.updated_at || r.created_at || '';
+        if (at > latestAt) { latestAt = at; latestWeek = r.week_start; }
       });
 
       /* 보냄 표시 */
@@ -278,6 +290,16 @@
       res[4].data.forEach(function (r) {
         sent[r.week_start] = sent[r.week_start] || {};
         sent[r.week_start][r.student_id] = { at: r.sent_at, via: r.via, by: r.sent_by };
+      });
+
+      /* 주차 종료일 — week_meta 가 있으면 그것이 주인이다.
+         (migration-003 전에는 줄이 없으므로 위의 week_common 값이 남는다)
+
+         res 의 자리는 위 Promise.all 의 순서 그대로다. week_meta 는 마지막이다.
+         자리를 잘못 세면 엉뚱한 결과를 종료일로 읽으므로 이름으로 못을 박아 둔다. */
+      var WEEK_META = 10;
+      (res[WEEK_META] && res[WEEK_META].data || []).forEach(function (r) {
+        if (r && r.week_start && r.week_end) weeks[r.week_start] = r.week_end;
       });
 
       /* 발행 이력 */
@@ -294,6 +316,7 @@
         snippets: snippets,
         common: common,
         weekEnds: weeks,
+        latestWeek: latestWeek,
         entries: entries,
         sent: sent,
         published: published,
@@ -332,6 +355,27 @@
         var ids = rows.map(function (r) { return r.id; });
         return c.from('students').delete().not('id', 'in', '(' + ids.join(',') + ')').then(check);
       });
+  }
+
+  /* 주차 종료일. 반과 상관없이 주차마다 한 줄이다.
+
+     예전에는 종료일이 week_common 에만 있어서, 반 공통(차시·테스트 이름)을
+     아직 안 적은 반은 줄이 안 생겨 종료일이 서버에 올라가지 않았다.
+     그래서 새로고침하면 그 주 금요일로 되돌아갔다. (그게 날짜 버그의 원인 A·B)
+
+     표가 아직 없으면(migration-003 미실행) 건너뛴다. 이 기기에는 남아 있으므로
+     SQL 을 실행하고 다시 저장하면 그때 올라간다. */
+  function saveWeekMeta(weekStart, weekEnd) {
+    if (!weekStart || !weekEnd) return Promise.resolve({ skipped: true });
+    if (weekEnd < weekStart) return Promise.resolve({ skipped: true });
+    if (missingTables.indexOf('week_meta') !== -1) {
+      return Promise.resolve({ skipped: true });
+    }
+    return sb().from('week_meta').upsert({
+      week_start: weekStart,
+      week_end: weekEnd,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'week_start' }).then(check);
   }
 
   function saveWeekCommon(weekStart, weekEnd, className, lessons, tests) {
@@ -483,6 +527,7 @@
     loadAll: loadAll,
     syncStudents: syncStudents,
     saveWeekCommon: saveWeekCommon,
+    saveWeekMeta: saveWeekMeta,
     saveEntries: saveEntries,
     saveSnippets: saveSnippets,
     markSent: markSent,

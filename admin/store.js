@@ -131,6 +131,12 @@
     var ids = getStudents().map(function (s) { return s.id; });
     var jobs = [];
 
+    /* 종료일은 반과 상관없이 먼저 올린다.
+       아래 반 공통 저장은 '반 공통에 뭔가 적은 반' 만 도는데, 예전에는
+       종료일도 거기 얹혀 있어서 아무 반도 안 적었으면 종료일이 통째로
+       서버에 안 올라갔다. 그게 새로고침하면 금요일로 되돌아가던 원인이다. */
+    jobs.push(global.DB.saveWeekMeta(draft.weekStart, draft.weekEnd));
+
     Object.keys(draft.common || {}).forEach(function (cls) {
       if (!cls || cls === '_') return;
       var c = draft.common[cls];
@@ -642,6 +648,30 @@
     return toISO(mon);
   }
 
+  var DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+  /* '2026-09-14' → '9/14(월)' */
+  function dateWithDow(iso) {
+    var d = parseISO(iso);
+    if (!d) return '';
+    return (d.getMonth() + 1) + '/' + d.getDate() + '(' + DOW[d.getDay()] + ')';
+  }
+
+  /* 두 날짜 사이가 며칠인가. 양 끝을 모두 센다. 9/14~9/20 → 7 */
+  function daysBetween(startISO, endISO) {
+    var a = parseISO(startISO), b = parseISO(endISO);
+    if (!a || !b) return 0;
+    return Math.round((b - a) / 86400000) + 1;
+  }
+
+  /* 시작일에 기간 길이를 더해 종료일을 구한다. 7일이면 9/21 → 9/27 */
+  function endFromSpan(startISO, days) {
+    var d = parseISO(startISO);
+    if (!d || !days || days < 1) return '';
+    d.setDate(d.getDate() + days - 1);
+    return toISO(d);
+  }
+
   /* 오늘이 속한 주의 월~금 */
   function thisWeek() {
     var mon = mondayOf(new Date());
@@ -714,13 +744,27 @@
       writeLocal(KEYS.sent, d.sent);
       writeLocal(KEYS.published, d.published);
 
-      /* 열어 둘 주차 — 서버에 내용이 있는 가장 최근 주차 */
+      /* 열어 둘 주차 — 마지막으로 손댄 주차.
+
+         예전에는 '시작일이 가장 늦은 주차' 를 열었다. 그러다 보니 날짜를
+         잘못 골라 생긴 엉뚱한 주차(예: 9/19)가 하나라도 있으면 로그인할
+         때마다 거기로 들어갔고, 정작 작업하던 주차는 직접 날짜를 다시
+         골라야 보였다. 이제는 서버가 알려 주는 '마지막으로 고친 주차' 를 쓴다. */
       var weeks = Object.keys(d.entries).concat(Object.keys(d.common)).sort();
-      var week = weeks.length ? weeks[weeks.length - 1] : thisWeek().start;
+      var week = d.latestWeek ||
+                 (weeks.length ? weeks[weeks.length - 1] : thisWeek().start);
+
+      /* 종료일은 week_meta 가 주인이다. 서버에 없을 때만 그 주 금요일로 둔다. */
+      var end = d.weekEnds[week] || fridayOfWeek(week);
+      /* 뒤집힌 값이 남아 있으면(옛 자료) 쓰지 않는다 */
+      if (end < week) end = fridayOfWeek(week);
 
       writeLocal(KEYS.draft, {
         weekStart: week,
-        weekEnd: d.weekEnds[week] || fridayOfWeek(week),
+        weekEnd: end,
+        /* 종료일을 사람이 고른 적이 있는지. 서버에 줄이 있으면 고른 것이다.
+           이 값이 참이면 시작일을 바꿔도 기간 길이를 지킨다. */
+        weekEndTouched: !!d.weekEnds[week] && d.weekEnds[week] >= week,
         common: d.common[week] || {},
         entries: d.entries[week] || {}
       });
@@ -894,6 +938,7 @@
 
     toISO: toISO, parseISO: parseISO,
     fridayOfWeek: fridayOfWeek, thisWeek: thisWeek,
+    dateWithDow: dateWithDow, daysBetween: daysBetween, endFromSpan: endFromSpan,
     mmdd: mmdd, shortDate: shortDate,
 
     getSnippets: getSnippets, saveSnippets: saveSnippets,

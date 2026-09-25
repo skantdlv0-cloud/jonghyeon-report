@@ -40,7 +40,8 @@
 
   function emptyDraft() {
     var w = Store.thisWeek();
-    return { weekStart: w.start, weekEnd: w.end, common: {}, entries: {} };
+    return { weekStart: w.start, weekEnd: w.end, weekEndTouched: false,
+             common: {}, entries: {} };
   }
 
   function emptyEntry() {
@@ -123,22 +124,58 @@
     $('#weekStart').value = draft.weekStart || '';
     $('#weekEnd').value   = draft.weekEnd || '';
 
-    var s = Store.shortDate(draft.weekStart);
-    var e = Store.shortDate(draft.weekEnd);
-    $('#weekSummary').textContent = (s && e) ? s + ' ~ ' + e : '';
+    /* 종료일이 시작일보다 빠를 수 없다. 화면에서 먼저 막는다.
+       (예전에 9/19~9/18 로 42건이 발행된 적이 있다) */
+    $('#weekEnd').min = draft.weekStart || '';
+
+    var host = $('#weekSummary');
+    if (!draft.weekStart || !draft.weekEnd) { host.textContent = ''; return; }
+
+    if (draft.weekEnd < draft.weekStart) {
+      host.textContent = '종료일이 시작일보다 빠릅니다 — 다시 골라 주세요';
+      host.className = 'week-summary week-summary--bad';
+      return;
+    }
+
+    /* 요일과 일수를 같이 보여 준다. 잘못 고른 날짜가 눈에 띈다. */
+    var days = Store.daysBetween(draft.weekStart, draft.weekEnd);
+    host.textContent = Store.dateWithDow(draft.weekStart) + ' ~ ' +
+                       Store.dateWithDow(draft.weekEnd) + ' · ' + days + '일';
+    host.className = 'week-summary num';
   }
 
   $('#weekStart').addEventListener('change', function (e) {
+    var prevStart = draft.weekStart;
     draft.weekStart = e.target.value;
-    var fri = Store.fridayOfWeek(draft.weekStart);
-    if (fri) draft.weekEnd = fri;          /* 그 주 금요일로 자동 */
+
+    /* 종료일을 사람이 고른 적이 있으면 기간 길이를 지킨다.
+       예전에는 조건 없이 그 주 금요일로 덮어써서, 9/20 으로 고쳐 둔 종료일이
+       시작일을 한 번 다시 누르는 것만으로 9/18 로 되돌아갔다. */
+    var span = (draft.weekEndTouched && prevStart && draft.weekEnd)
+                 ? Store.daysBetween(prevStart, draft.weekEnd) : 0;
+
+    if (span > 0) {
+      draft.weekEnd = Store.endFromSpan(draft.weekStart, span) || draft.weekEnd;
+      toast(span + '일 기간을 그대로 옮겼습니다');
+    } else {
+      var fri = Store.fridayOfWeek(draft.weekStart);
+      if (fri) draft.weekEnd = fri;        /* 처음이면 그 주 금요일로 자동 */
+    }
+
     renderWeek();
     saveDraft();
     refreshAll();
   });
 
   $('#weekEnd').addEventListener('change', function (e) {
-    draft.weekEnd = e.target.value;        /* 직접 고친 값은 존중한다 */
+    var v = e.target.value;
+    if (v && draft.weekStart && v < draft.weekStart) {
+      toast('종료일이 시작일보다 빠릅니다', 'bad');
+      renderWeek();                        /* 옛 값으로 되돌린다 */
+      return;
+    }
+    draft.weekEnd = v;
+    draft.weekEndTouched = true;           /* 사람이 고른 값이다 */
     renderWeek();
     saveDraft();
   });
@@ -147,6 +184,7 @@
     var w = Store.thisWeek();
     draft.weekStart = w.start;
     draft.weekEnd = w.end;
+    draft.weekEndTouched = false;
     renderWeek();
     saveDraft();
     refreshAll();

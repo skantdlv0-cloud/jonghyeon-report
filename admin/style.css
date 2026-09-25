@@ -590,6 +590,14 @@ dialog.modal::backdrop { background: rgba(51, 58, 87, .38); backdrop-filter: blu
   font-weight: 800;
   color: var(--ink-deep);
 }
+/* 종료일이 시작일보다 빠를 때 */
+.week-summary--bad {
+  align-self: flex-end;
+  padding-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--danger);
+}
 
 /* 반 고르기 칩 */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }

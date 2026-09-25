@@ -13,8 +13,8 @@
 --    RLS 를 끄면 키를 아는 누구나 전체 자료를 읽는다.
 --    secret key · service_role key 는 절대 브라우저·저장소에 넣지 않는다.
 --
---  표 아홉 개
---    students  field_defs  week_common  entries  published
+--  표 열 개
+--    students  field_defs  week_common  week_meta  entries  published
 --    sent  snippets  app_settings  class_info
 -- ============================================================
 
@@ -120,6 +120,27 @@ create unique index if not exists week_common_key on public.week_common (week_st
 
 drop trigger if exists week_common_touch on public.week_common;
 create trigger week_common_touch before update on public.week_common
+  for each row execute function public.touch_updated_at();
+
+
+-- ------------------------------------------------------------
+--  3-2. week_meta — 주차 종료일 (주차마다 한 줄)
+--
+--     종료일은 '그 주' 의 성질이지 '그 반' 의 성질이 아니다.
+--     week_common 에 두었더니 반 공통을 안 적은 반은 종료일이
+--     저장되지 않고, 반이 여럿이면 어느 값이 이기는지도 정해지지
+--     않았다. 그래서 따로 뺐다. (migration-003)
+-- ------------------------------------------------------------
+create table if not exists public.week_meta (
+  week_start  date primary key,
+  week_end    date not null,
+  updated_at  timestamptz not null default now(),
+
+  constraint week_meta_order check (week_end >= week_start)
+);
+
+drop trigger if exists week_meta_touch on public.week_meta;
+create trigger week_meta_touch before update on public.week_meta
   for each row execute function public.touch_updated_at();
 
 
@@ -258,6 +279,7 @@ create table if not exists public.class_info (
 alter table public.students     enable row level security;
 alter table public.field_defs   enable row level security;
 alter table public.week_common  enable row level security;
+alter table public.week_meta    enable row level security;
 alter table public.entries      enable row level security;
 alter table public.published    enable row level security;
 alter table public.sent         enable row level security;
@@ -270,7 +292,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'students','field_defs','week_common','entries','published',
+    'students','field_defs','week_common','week_meta','entries','published',
     'sent','snippets','app_settings','class_info'
   ] loop
     execute format('drop policy if exists %I on public.%I', t || '_authenticated_all', t);
@@ -287,11 +309,11 @@ $$;
 --  확인 — 아래 세 결과를 눈으로 본다
 -- ============================================================
 
--- (1) 표 9개가 전부 rls_enabled = true 여야 한다
+-- (1) 표 10개가 전부 rls_enabled = true 여야 한다
 select tablename, rowsecurity as rls_enabled
 from pg_tables
 where schemaname = 'public'
-  and tablename in ('students','field_defs','week_common','entries','published',
+  and tablename in ('students','field_defs','week_common','week_meta','entries','published',
                     'sent','snippets','app_settings','class_info')
 order by tablename;
 
