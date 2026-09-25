@@ -141,10 +141,14 @@
   }
 
   /* 출결을 골랐으면 '작성됨' 으로 본다 */
-  function isWritten(id) {
-    var e = draft.entries[id];
-    return !!(e && e.attendStatus);
+  /* 이 학생의 작성 상태. 규칙은 report.js 한 곳에 있다.
+     발행 탭도 같은 함수를 쓰므로 둘이 어긋날 수 없다. */
+  function statusOf(id) {
+    var s = students().find(function (x) { return x.id === id; });
+    return Report.entryStatus(commonOf((s && s.className) || '_'), entryOf(id));
   }
+
+  function isWritten(id) { return statusOf(id).state === 'done'; }
 
   function studentsOfClass(cls) {
     return students()
@@ -564,7 +568,7 @@
         (selectedId === s.id ? ' is-selected' : '') + '" data-id="' + s.id + '">' +
         '<div class="entry__head" data-act="head">' +
           '<span class="entry__name"></span>' +
-          '<span class="entry__badge">' + (isWritten(s.id) ? '작성됨' : '미작성') + '</span>' +
+          '<span class="entry__badge"></span>' +
           '<span class="entry__caret" aria-hidden="true">▾</span>' +
         '</div>' +
         '<div class="entry__body">' +
@@ -654,9 +658,21 @@
     return parts.join(' · ');
   }
 
+  /* 카드 오른쪽 위 딱지 — 미작성(회색) · 작성 중(주황) · 작성 완료(초록).
+     작성 중이면 무엇이 빠졌는지 마우스를 올려 볼 수 있게 적어 둔다. */
+  function fillBadge(el, id) {
+    var b = el.querySelector('.entry__badge');
+    if (!b) return;
+    var st = statusOf(id);
+    b.textContent = Report.statusLabel(st.state);
+    b.className = 'entry__badge entry__badge--' + st.state;
+    b.title = st.missing.length ? '아직 필요한 것 — ' + st.missing.join(', ') : '';
+  }
+
   function fillEntryCard(el, s, tests) {
     var e = entryOf(s.id);
     el.querySelector('.entry__name').textContent = s.name || '';
+    fillBadge(el, s.id);
 
     $$('.score', el).forEach(function (lab, i) {
       lab.querySelector('.score__name').textContent = tests[i] || '';
@@ -707,12 +723,7 @@
       host.appendChild(frag);
     }
 
-    var done = list.filter(function (s) { return isWritten(s.id); }).length;
-    $('#entryProgress').textContent = currentClass
-      ? currentClass + ' · ' + done + ' / ' + list.length + '명 작성됨'
-      : '';
-    $('#queueInfo').textContent = done ? done + '명 작성됨 · 발행 탭에 자동으로 올라갑니다' : '출결을 고르면 발행 목록에 올라갑니다';
-    $('#btnEnqueue').disabled = !done;
+    updateCounts();
   }
 
   /* ---------- 입력 반응 (이벤트 위임) ---------- */
@@ -744,7 +755,7 @@
       note.hidden = !(e.attendStatus === 'late' || e.attendStatus === 'makeup');
       if (!note.hidden) note.value = e.attendNote || '';
       card.classList.toggle('is-written', isWritten(id));
-      card.querySelector('.entry__badge').textContent = isWritten(id) ? '작성됨' : '미작성';
+      fillBadge(card, id);
       afterChange(id);
       return;
     }
@@ -805,11 +816,20 @@
 
   function updateCounts() {
     var list = studentsOfClass(currentClass);
-    var done = list.filter(function (s) { return isWritten(s.id); }).length;
+    var n = { none: 0, partial: 0, done: 0 };
+    list.forEach(function (s) { n[statusOf(s.id).state]++; });
+
     $('#entryProgress').textContent = currentClass
-      ? currentClass + ' · ' + done + ' / ' + list.length + '명 작성됨' : '';
-    $('#queueInfo').textContent = done ? done + '명 작성됨 · 발행 탭에 자동으로 올라갑니다' : '출결을 고르면 발행 목록에 올라갑니다';
-    $('#btnEnqueue').disabled = !done;
+      ? currentClass + ' · 작성 완료 ' + n.done + ' / ' + list.length + '명' +
+        (n.partial ? ' · 작성 중 ' + n.partial + '명' : '')
+      : '';
+
+    $('#queueInfo').textContent = n.done
+      ? n.done + '명 작성 완료 · 발행 탭에 올라갑니다' +
+        (n.partial ? ' (작성 중 ' + n.partial + '명은 빠집니다)' : '')
+      : '필수 항목을 다 채우면 발행 목록에 올라갑니다';
+
+    $('#btnEnqueue').disabled = !n.done;
   }
 
   $('#onlyUnwritten').addEventListener('change', renderEntries);

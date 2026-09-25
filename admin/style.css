@@ -678,7 +678,6 @@ dialog.modal::backdrop { background: rgba(51, 58, 87, .38); backdrop-filter: blu
   overflow: hidden;
 }
 .entry.is-selected { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(111,103,190,.16); }
-.entry.is-written .entry__badge { background: #E6F5EE; color: #35806A; }
 
 .entry__head {
   display: flex;
@@ -694,9 +693,18 @@ dialog.modal::backdrop { background: rgba(51, 58, 87, .38); backdrop-filter: blu
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
+  white-space: nowrap;
+  /* 기본은 미작성(회색). 아래에서 상태별로 덮는다. */
   background: #EFF1F8;
   color: var(--ink-light);
+  cursor: default;
 }
+/* 미작성 — 아직 아무것도 안 건드림 */
+.entry__badge--none    { background: #EFF1F8; color: var(--ink-light); }
+/* 작성 중 — 건드렸지만 빠진 게 있음. 마우스를 올리면 무엇이 빠졌는지 나온다 */
+.entry__badge--partial { background: #FFF6E8; color: #97701F; cursor: help; }
+/* 작성 완료 — 필수가 다 채워짐 */
+.entry__badge--done    { background: #E6F5EE; color: #35806A; }
 .entry__caret { margin-left: auto; color: var(--ink-light); font-size: 11px; transition: transform .15s; }
 .entry.is-collapsed .entry__caret { transform: rotate(-90deg); }
 .entry.is-collapsed .entry__body { display: none; }

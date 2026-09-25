@@ -89,6 +89,8 @@
      ============================================================ */
 
   var pending = [];      /* [{ student, data, path, url, alreadyPublished }] */
+  /* 이번에 빠진 학생 수 — 안내에 적는다 */
+  var skipped = { partial: 0, none: 0 };
 
   function buildList() {
     var draft = Store.read(Store.KEYS.draft, null);
@@ -98,13 +100,24 @@
     var weekPub = published[draft.weekStart] || {};
     var out = [];
 
+    var includePartial = !!($('#pubIncludePartial') || {}).checked;
+    skipped = { partial: 0, none: 0 };
+
     students().forEach(function (s) {
       if (s.archived) return;
       var e = (draft.entries || {})[s.id];
-      if (!e || !e.attendStatus) return;          /* 출결을 안 고른 학생은 아직 미작성 */
 
       var cls = s.className || '';
       var common = (draft.common || {})[cls] || { lessons: [], tests: [] };
+
+      /* 작성 상태 판정은 report.js 한 곳에 있다. 작성 탭의 딱지와 같은 규칙이라
+         '작성 완료' 로 보이는데 여기 없는 일이 생기지 않는다. */
+      var st = Report.entryStatus(common, e);
+      if (st.state === 'none') { skipped.none++; return; }
+      if (st.state === 'partial') {
+        skipped.partial++;
+        if (!includePartial) return;
+      }
 
       var data = Report.toReportData(s, common, e,
                                      { start: draft.weekStart, end: draft.weekEnd });
@@ -152,7 +165,12 @@
     if (!pending.length) {
       host.innerHTML =
         '<div class="empty-state">올릴 레포트가 없습니다.<br>' +
-        '② 작성 탭에서 <b>출결을 고른 학생</b>만 올라갑니다.</div>';
+        '② 작성 탭에서 <b>필수 항목을 다 채운 학생</b>만 올라갑니다.' +
+        (skipped.partial
+          ? '<br>작성 중인 학생이 ' + skipped.partial + '명 있습니다 — ' +
+            '위의 <b>작성 중도 포함</b>을 켜면 함께 올라갑니다.'
+          : '') +
+        '</div>';
       refreshPublishButton();
       return;
     }
@@ -197,9 +215,13 @@
     host.appendChild(frag);
 
     var again = pending.filter(function (p) { return p.republish; }).length;
+    var left = skipped.partial && !($('#pubIncludePartial') || {}).checked
+                 ? skipped.partial : 0;
+
     $('#pubInfo').textContent =
       (groups.length > 1 ? groups.length + '개 반 ' : '') + pending.length + '명' +
-      (again ? ' (그중 ' + again + '명은 다시 올림 — 링크는 그대로)' : '');
+      (again ? ' (그중 ' + again + '명은 다시 올림 — 링크는 그대로)' : '') +
+      (left ? ' · 작성 중 ' + left + '명은 빠졌습니다' : '');
 
     refreshPublishButton();
   }
@@ -215,6 +237,14 @@
   $('#btnPubRefresh').addEventListener('click', function () {
     renderList();
     toast('목록을 새로 읽었습니다');
+  });
+
+  /* '작성 중도 포함' 을 켜고 끄면 목록을 다시 만든다 */
+  $('#pubIncludePartial').addEventListener('change', function (e) {
+    renderList();
+    toast(e.target.checked
+      ? '작성 중인 학생도 목록에 넣었습니다'
+      : '작성 완료한 학생만 올립니다');
   });
 
   /* ============================================================

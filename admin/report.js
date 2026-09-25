@@ -145,6 +145,85 @@
     return (((common && common.comment) || '')).trim();
   }
 
+  /* ============================================================
+     작성 완료 판정
+
+     필수 항목이 다 채워졌을 때만 '작성 완료' 다.
+     작성 탭의 딱지와 발행 탭의 목록이 이 한 함수를 같이 쓴다.
+     그래야 '작성됨' 으로 보이는데 발행 목록에는 없는 일이 생기지 않는다.
+
+       출결        언제나 필수
+       집중도      1점 이상. 결석이면 면제
+       리뷰테스트   반 공통에 이름이 있는 것 전부. 결석이면 면제
+       코멘트      반 공통이든 개별이든 비어 있지 않을 것
+
+     과제 체크와 제출률은 필수가 아니다. '안 함' 도 정상적인 값이라
+     다 채웠는지 알 방법이 없기 때문이다.
+
+     돌려주는 것
+       state   'none'    아직 아무것도 안 건드림      (회색 · 미작성)
+               'partial' 건드렸지만 빠진 게 있음      (주황 · 작성 중)
+               'done'    필수가 다 채워짐             (초록 · 작성 완료)
+       missing 빠진 항목 이름들 — 화면에서 무엇이 모자란지 알려 준다
+     ============================================================ */
+
+  function isAbsent(entry) {
+    var a = String((entry && entry.attendStatus) || '').trim();
+    return a === 'absent' || a === '결석';
+  }
+
+  function namedTests(common) {
+    /* 이름이 적힌 것만. 점수는 원래 자리(index)로 붙으므로 자리를 같이 들고 간다. */
+    var out = [];
+    ((common && common.tests) || []).forEach(function (name, i) {
+      if (name != null && String(name).trim()) out.push({ i: i, name: String(name).trim() });
+    });
+    return out;
+  }
+
+  function hasScore(entry, i) {
+    var v = entry && entry.scores ? entry.scores[i] : undefined;
+    if (v === 0) return true;             /* 0점(미응시)도 고른 값이다 */
+    return v != null && String(v).trim() !== '';
+  }
+
+  function entryStatus(common, entry) {
+    var e = entry || {};
+    var att = String(e.attendStatus || '').trim();
+    var absent = isAbsent(e);
+    var missing = [];
+
+    if (!att) missing.push('출결');
+
+    if (!absent) {
+      if (!(Number(e.focusScore) > 0)) missing.push('집중도');
+
+      var tests = namedTests(common);
+      var noScore = tests.filter(function (t) { return !hasScore(e, t.i); });
+      if (noScore.length === 1) missing.push(noScore[0].name + ' 점수');
+      else if (noScore.length > 1) missing.push('점수 ' + noScore.length + '개');
+    }
+
+    if (!commentFor(common, e)) missing.push('코멘트');
+
+    /* '건드렸는가' 는 그 학생 것만 본다.
+       반 공통 코멘트를 적었다고 해서 42명 전원이 '작성 중' 이 되면 안 된다. */
+    var touched = !!att ||
+                  Number(e.focusScore) > 0 ||
+                  Object.keys(e.scores || {}).length > 0 ||
+                  !!String(e.comment || '').trim() ||
+                  Object.keys(e.homework || {}).some(function (k) { return e.homework[k]; });
+
+    return {
+      state: !missing.length ? 'done' : (touched ? 'partial' : 'none'),
+      missing: missing
+    };
+  }
+
+  var STATUS_LABEL = { none: '미작성', partial: '작성 중', done: '작성 완료' };
+
+  function statusLabel(state) { return STATUS_LABEL[state] || '미작성'; }
+
   function clampPct(v) {
     var n = Math.round(Number(v) || 0);
     return n < 0 ? 0 : n > 100 ? 100 : n;
@@ -213,6 +292,10 @@
     groupOf: groupOf,
     rateOf: rateOf,
     isLegacyHomework: isLegacyHomework,
+    entryStatus: entryStatus,
+    statusLabel: statusLabel,
+    isAbsent: isAbsent,
+    namedTests: namedTests,
     todayISO: todayISO
   };
 
