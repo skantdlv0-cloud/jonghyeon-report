@@ -15,8 +15,15 @@
 
   /* ---------- 학생 ---------- */
 
+  /* migration-001 이 만드는 student_phone 칸이 서버에 있는가.
+     loadAll 이 한 번 살펴 두고, 없으면 그 칸을 빼고 저장한다.
+     (배포가 SQL 보다 먼저 나가도 명단 저장이 깨지지 않게) */
+  function hasStudentPhone() {
+    return missingTables.indexOf('students.student_phone') === -1;
+  }
+
   function toDbStudent(s) {
-    return {
+    var row = {
       id: s.id,
       name: s.name || '',
       slug: s.slug || '',
@@ -25,11 +32,24 @@
       class_name: s.className || '',
       parent_title: s.parentTitle || '',
       parent_phone: s.parentPhone || '',
-      parent_phone2: s.parentPhone2 || '',
       extra: s.extra || {},
       archived: !!s.archived,
       sort_order: s.sortOrder || 0
     };
+
+    if (hasStudentPhone()) {
+      row.student_phone = s.studentPhone || '';
+      /* 옛 '연락처 2'. migration-001 이 student_phone 으로 옮겼고
+         migration-002 가 비운다. 옛 기기에서 들어온 값을 말없이
+         지우지 않으려고 그대로 실어 보낸다. */
+      row.parent_phone2 = s.parentPhone2 || '';
+    } else {
+      /* migration-001 을 아직 안 돌렸다. 학생 번호를 담을 칸이 없으므로
+         옛 칸에 그대로 둔다. SQL 을 돌리면 그때 옮겨진다. */
+      row.parent_phone2 = s.studentPhone || s.parentPhone2 || '';
+    }
+
+    return row;
   }
 
   function fromDbStudent(r) {
@@ -42,6 +62,8 @@
       className: r.class_name || '',
       parentTitle: r.parent_title || '',
       parentPhone: r.parent_phone || '',
+      /* migration-001 전에는 학생 번호가 옛 칸에 있다 */
+      studentPhone: r.student_phone || r.parent_phone2 || '',
       parentPhone2: r.parent_phone2 || '',
       extra: r.extra || {},
       archived: !!r.archived,
@@ -220,7 +242,10 @@
       c.from('field_defs').select('*').order('sort_order'),
       optional('class_info', c.from('class_info').select('*')),
       /* migration-004 가 scope 칸도 같이 만든다. 없는 칸을 고르면 오류가 난다. */
-      optional('field_defs.scope', c.from('field_defs').select('scope').limit(1))
+      optional('field_defs.scope', c.from('field_defs').select('scope').limit(1)),
+      /* migration-001 이 만드는 칸. 배포가 SQL 보다 먼저 나가도
+         명단 저장이 실패하지 않도록 있는지 미리 살핀다. */
+      optional('students.student_phone', c.from('students').select('student_phone').limit(1))
     ]).then(function (res) {
       res.forEach(function (r) {
         if (r.error) throw new Error('불러오기 실패: ' + r.error.message);
@@ -472,7 +497,14 @@
     fromDbStudent: fromDbStudent,
     syncFieldDefs: syncFieldDefs,
     syncClassInfo: syncClassInfo,
-    missingTables: function () { return missingTables.slice(); }
+    missingTables: function () { return missingTables.slice(); },
+
+    /* 자동 검증용 — SQL 을 아직 안 돌린 상태를 흉내 낼 때만 쓴다.
+       화면 코드에서는 부르지 않는다. */
+    __markMissing: function (name) {
+      if (missingTables.indexOf(name) === -1) missingTables.push(name);
+      return Promise.resolve(missingTables.slice());
+    }
   };
 
 })(window);

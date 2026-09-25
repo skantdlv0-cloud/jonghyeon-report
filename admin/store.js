@@ -235,11 +235,23 @@
     return (s && String(s.parentTitle || '').trim()) || '어머님';
   }
 
-  /* 문자 보낼 수 있는 번호 목록 — E단계에서 고를 때 쓴다 */
+  /* 학생 본인 번호.
+     migration-001 전에는 옛 '연락처 2' 칸에 들어 있으므로 둘 다 본다. */
+  function studentPhoneOf(s) {
+    return (s && (s.studentPhone || s.parentPhone2)) || '';
+  }
+
+  /* 문자 보낼 수 있는 번호 목록 — E단계에서 고를 때 쓴다.
+     who 로 학부모인지 학생인지 구분한다. 발송 문구가 이걸 보고 갈린다. */
   function phonesOf(s) {
     var out = [];
-    if (s && s.parentPhone)  out.push({ label: parentTitleOf(s), number: s.parentPhone });
-    if (s && s.parentPhone2) out.push({ label: '연락처 2',        number: s.parentPhone2 });
+    if (s && s.parentPhone) {
+      out.push({ who: 'parent', label: parentTitleOf(s), number: s.parentPhone });
+    }
+    var stu = studentPhoneOf(s);
+    if (stu) {
+      out.push({ who: 'student', label: '학생 본인', number: stu });
+    }
     return out;
   }
 
@@ -873,6 +885,7 @@
     phoneFormat: phoneFormat,
     phoneValid: phoneValid,
     parentTitleOf: parentTitleOf,
+    studentPhoneOf: studentPhoneOf,
     phonesOf: phonesOf,
 
     exportEncrypted: exportEncrypted,

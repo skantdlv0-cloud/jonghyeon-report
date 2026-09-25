@@ -118,7 +118,8 @@
   function matches(s) {
     if (filterClass && (s.className || '') !== filterClass) return false;
     if (!filterText) return true;
-    var hay = [s.name, s.slug, s.school, s.grade, s.className];
+    var hay = [s.name, s.slug, s.school, s.grade, s.className,
+               s.parentPhone, Store.studentPhoneOf(s)];
     /* 내가 만든 칸에 적어 둔 내용도 같이 찾는다 */
     fields.forEach(function (f) { hay.push(Store.fieldText(s, f)); });
     return hay.join(' ').toLowerCase().indexOf(filterText) !== -1;
@@ -126,26 +127,29 @@
 
   /* ---------- 행 하나 ---------- */
 
-  /* 연락처 칸 — 호칭 + 번호 두 줄까지 */
+  /* 연락처 칸 — 학부모 줄 · 학생 줄.
+     Store.phonesOf 가 두 줄을 만들어 준다. (who: parent | student) */
+  function phoneLinesOf(s) {
+    return Store.phonesOf(s).map(function (p) {
+      return { title: p.label, num: p.number };
+    });
+  }
+
   function phoneCellHtml(s) {
-    var lines = [];
-    if (s.parentPhone)  lines.push({ title: s.parentTitle || '', num: s.parentPhone });
-    if (s.parentPhone2) lines.push({ title: lines.length ? '' : (s.parentTitle || ''), num: s.parentPhone2 });
+    var lines = phoneLinesOf(s);
 
     if (!lines.length) return '<span class="roster__phone is-empty">없음</span>';
 
-    return '<span class="phone-lines">' + lines.map(function (l) {
+    return '<span class="phone-lines">' + lines.map(function () {
       return '<span class="phone-line">' +
-               (l.title ? '<span class="phone-line__title"></span>' : '') +
+               '<span class="phone-line__title"></span>' +
                '<span class="phone-line__num"></span>' +
              '</span>';
     }).join('') + '</span>';
   }
 
   function fillPhoneCell(td, s) {
-    var lines = [];
-    if (s.parentPhone)  lines.push({ title: s.parentTitle || '', num: s.parentPhone });
-    if (s.parentPhone2) lines.push({ title: lines.length ? '' : (s.parentTitle || ''), num: s.parentPhone2 });
+    var lines = phoneLinesOf(s);
 
     var nodes = td.querySelectorAll('.phone-line');
     lines.forEach(function (l, i) {
@@ -543,7 +547,8 @@
     $('#fClass').value  = s ? (s.className || '')   : '';
     $('#fParentTitle').value = s ? (s.parentTitle || '') : '';
     $('#fPhone').value  = s && s.parentPhone  ? Store.phoneFormat(s.parentPhone)  : '';
-    $('#fPhone2').value = s && s.parentPhone2 ? Store.phoneFormat(s.parentPhone2) : '';
+    var stuPhone = s ? Store.studentPhoneOf(s) : '';
+    $('#fPhone2').value = stuPhone ? Store.phoneFormat(stuPhone) : '';
 
     /* 새 학생이면 직전에 쓰던 학년·반을 미리 채워 연속 입력을 빠르게 한다 */
     if (!s) {
@@ -592,11 +597,11 @@
       return;
     }
     if (!Store.phoneValid(phone)) {
-      showStudentError('연락처 1의 자릿수를 확인해 주세요.');
+      showStudentError('학부모 연락처의 자릿수를 확인해 주세요.');
       return;
     }
     if (!Store.phoneValid(phone2)) {
-      showStudentError('연락처 2의 자릿수를 확인해 주세요.');
+      showStudentError('학생 연락처의 자릿수를 확인해 주세요.');
       return;
     }
     if (phone2 && phone2 === phone) {
@@ -627,7 +632,12 @@
       className: $('#fClass').value.trim(),
       parentTitle: $('#fParentTitle').value.trim(),
       parentPhone: phone,
-      parentPhone2: phone2,
+      studentPhone: phone2,
+      /* 옛 '연락처 2' 는 손대지 않고 그대로 이어받는다.
+         migration-002 가 서버에서 비울 때까지 남겨 둔다. */
+      parentPhone2: (editingId
+        ? (students.find(function (x) { return x.id === editingId; }) || {}).parentPhone2 || ''
+        : ''),
       extra: collectExtra(editingId ? students.find(function (x) { return x.id === editingId; }) : null),
       createdAt: editingId
         ? (students.find(function (x) { return x.id === editingId; }) || {}).createdAt || Date.now()

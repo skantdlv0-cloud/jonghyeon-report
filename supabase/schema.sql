@@ -46,8 +46,10 @@ create table if not exists public.students (
   grade          text not null default '',
   class_name     text not null default '',
   parent_title   text not null default '',         -- 어머님 / 아버님 …
-  parent_phone   text not null default '',
-  parent_phone2  text not null default '',
+  parent_phone   text not null default '',         -- 학부모 번호
+  student_phone  text not null default '',         -- 학생 본인 번호 (없을 수 있다)
+  parent_phone2  text not null default '',         -- 옛 '연락처 2'. migration-002 로 비웠다.
+                                                   -- 옛 백업을 되살릴 때를 위해 칸만 남겨 둔다.
   extra          jsonb not null default '{}'::jsonb,
   archived       boolean not null default false,   -- 퇴원 학생은 지우지 않고 내린다
   sort_order     integer not null default 0,
