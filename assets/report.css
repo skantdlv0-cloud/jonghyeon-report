@@ -404,6 +404,87 @@ body {
 .hw-name { flex: 1 1 auto; min-width: 0; }
 
 /* ============================================================
+   과제 수행 — 항목마다 월~금 요일
+
+   한 줄에 이름 + 요일 동그라미 다섯. 요일 글자는 묶음 제목 줄에
+   한 번만 적어서 항목이 많아도 줄마다 되풀이되지 않게 한다.
+   위의 .hw-item 들도 지우지 않는다 (어제 방식 · 발행본이 쓴다).
+   ============================================================ */
+.hwd-group + .hwd-group { margin-top: 16px; }
+
+.hwd-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.hwd-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink-mid);
+}
+.hwd-group--optional .hwd-title { color: var(--ink-light); }
+.hwd-count {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-light);
+}
+/* 오른쪽 여백을 .hwd-row 와 맞춰야 글자가 동그라미 바로 위에 온다 */
+.hwd-days-label {
+  margin-left: auto;
+  padding-right: 11px;
+  display: flex;
+  gap: 6px;
+}
+.hwd-days-label span {
+  width: 26px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-mid);
+}
+
+.hwd-list { display: grid; gap: 6px; }
+
+.hwd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px 9px 13px;
+  border-radius: 13px;
+  background: var(--grad-soft);
+}
+.hwd-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-deep);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.hwd-dots { flex: 0 0 auto; display: flex; gap: 6px; }
+.hwd-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: #E9EBF5;
+  color: #A3AAC6;
+  opacity: .6;
+}
+.hwd-dot.done {
+  background: var(--grad-strong);
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 3px 8px rgba(54, 64, 127, .22);
+}
+
+/* ============================================================
    과제 제출률 — 원형 게이지
    ============================================================ */
 .rate-grid {
@@ -569,6 +650,13 @@ body {
   .focus-stars { font-size: 32px; }
   .rate-circle { width: 95px; height: 95px; }
   .rate-num { font-size: 19px; }
+  /* 작은 폰에서도 과제 이름 칸이 너무 좁아지지 않게 동그라미를 줄인다 */
+  .hwd-row { gap: 8px; padding: 8px 9px 8px 11px; }
+  .hwd-name { font-size: 14px; }
+  .hwd-dots, .hwd-days-label { gap: 4px; }
+  .hwd-days-label { padding-right: 9px; }
+  .hwd-dot, .hwd-days-label span { width: 23px; }
+  .hwd-dot { height: 23px; font-size: 12px; }
 }
 
 /* ============================================================
@@ -604,7 +692,8 @@ body {
   }
   .hw-circle.done { box-shadow: none; }
   .progress-fill, .rate-circle-fill { transition: none; }
-  .att-box, .info-item, .hw-circle.done, .lesson-check,
+  .hwd-dot.done { box-shadow: none; }
+  .att-box, .info-item, .hw-circle.done, .hwd-dot.done, .lesson-check,
   .progress-fill {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

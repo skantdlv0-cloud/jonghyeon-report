@@ -338,12 +338,29 @@
   /* ---------- 과제 수행 ---------- */
 
   /* ---------- 과제 ----------
-     새 방식 : 반 공통에 적은 항목마다 이름과 했는지 여부
+     지금 방식 : 반 공통에 적은 항목마다 월~금 요일 체크
        homeworkItems [{key, group:'required'|'optional', name}]
-       homework      {h1:true, h3:false}
+       homework      {h1:{"월":true,"수":true}, h3:{}}
 
+     어제 방식 : 항목마다 했는지만 (homework {h1:true})
+       요일을 다시 체크하기 전까지 이 모양으로 그린다.
      옛 방식 : 월~금 요일 체크 (homework {"월":true,…}, 목록 없음)
-     지난 주차를 다시 그릴 때를 위해 둘 다 읽는다. */
+     지난 주차를 다시 그릴 때를 위해 셋 다 읽는다. */
+
+  function daysDone(v) {
+    if (!v || typeof v !== 'object') return 0;
+    return DAYS.filter(function (day) { return !!v[day]; }).length;
+  }
+
+  function itemDone(v) {
+    return v === true || daysDone(v) > 0;
+  }
+
+  /* 요일 없이 '했다' 만 남은 항목이 있는가 */
+  function isItemOnlyHomework(d) {
+    var hw = d.homework || {};
+    return (d.homeworkItems || []).some(function (it) { return hw[it.key] === true; });
+  }
 
   function isLegacyHomework(d) {
     if ((d.homeworkItems || []).length) return false;
@@ -375,10 +392,10 @@
 
   function hwGroupHtml(title, items, hw, kind) {
     if (!items.length) return '';
-    var done = items.filter(function (it) { return !!hw[it.key]; }).length;
+    var done = items.filter(function (it) { return itemDone(hw[it.key]); }).length;
 
     var rows = items.map(function (it) {
-      var ok = !!hw[it.key];
+      var ok = itemDone(hw[it.key]);
       return '<li class="hw-item' + (ok ? ' is-done' : '') + '">' +
                '<span class="hw-mark" aria-hidden="true">' + (ok ? '✓' : '✗') + '</span>' +
                '<span class="hw-name">' + esc(it.name) + '</span>' +
@@ -395,6 +412,41 @@
            '</div>';
   }
 
+  /* 지금 방식 — 항목 한 줄에 이름과 요일 동그라미 다섯.
+     요일 글자는 묶음 제목 줄에 한 번만 적는다. */
+  function hwDaysGroupHtml(title, items, hw, kind) {
+    if (!items.length) return '';
+    var done = 0;
+
+    var rows = items.map(function (it) {
+      var v = hw[it.key];
+      var marks = [];
+      var dots = DAYS.map(function (day) {
+        var ok = !!(v && typeof v === 'object' && v[day]);
+        if (ok) { done++; marks.push(day); }
+        return '<span class="hwd-dot' + (ok ? ' done' : '') + '">' + (ok ? '✓' : '✗') + '</span>';
+      }).join('');
+      return '<li class="hwd-row">' +
+               '<span class="hwd-name">' + esc(it.name) + '</span>' +
+               '<span class="hwd-dots" aria-hidden="true">' + dots + '</span>' +
+               '<span class="sr-only">' +
+                 (marks.length ? marks.join('·') + '요일 제출' : '제출한 요일 없음') +
+               '</span>' +
+             '</li>';
+    }).join('');
+
+    return '<div class="hwd-group hwd-group--' + kind + '">' +
+             '<div class="hwd-head">' +
+               '<span class="hwd-title">' + title + '</span>' +
+               '<span class="hwd-count num">' + done + ' / ' + (items.length * DAYS.length) + '</span>' +
+               '<span class="hwd-days-label" aria-hidden="true">' +
+                 DAYS.map(function (day) { return '<span>' + day + '</span>'; }).join('') +
+               '</span>' +
+             '</div>' +
+             '<ul class="hwd-list">' + rows + '</ul>' +
+           '</div>';
+  }
+
   function homeworkHtml(d) {
     if (isLegacyHomework(d)) return legacyHomeworkHtml(d);
 
@@ -405,11 +457,16 @@
     var req = items.filter(function (it) { return it.group !== 'optional'; });
     var opt = items.filter(function (it) { return it.group === 'optional'; });
 
-    var body = hwGroupHtml('필수과제', req, hw, 'required') +
-               hwGroupHtml('선택과제', opt, hw, 'optional');
+    if (isItemOnlyHomework(d)) {
+      var body = hwGroupHtml('필수과제', req, hw, 'required') +
+                 hwGroupHtml('선택과제', opt, hw, 'optional');
+      var done = items.filter(function (it) { return itemDone(hw[it.key]); }).length;
+      return card('✅ 과제 수행', body, done + ' / ' + items.length + '개');
+    }
 
-    var done = items.filter(function (it) { return !!hw[it.key]; }).length;
-    return card('✅ 과제 수행', body, done + ' / ' + items.length + '개');
+    return card('✅ 과제 수행',
+      hwDaysGroupHtml('필수과제', req, hw, 'required') +
+      hwDaysGroupHtml('선택과제', opt, hw, 'optional'));
   }
 
   /* ---------- 과제 제출률 (원형 게이지) ---------- */

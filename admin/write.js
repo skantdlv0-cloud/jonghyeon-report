@@ -589,8 +589,7 @@
           '</div>' +
           '<div class="fieldline fieldline--hw">' +
             '<span class="fieldline__label">과제</span>' +
-            '<span class="hw-checks" data-role="hwchecks"></span>' +
-            '<span class="rate-note num" data-role="rate"></span>' +
+            '<div class="hwd" data-role="hwchecks"></div>' +
           '</div>' +
           '<div class="fieldline">' +
             '<span class="fieldline__label">코멘트</span>' +
@@ -604,14 +603,18 @@
   }
 
   /* 학생 카드의 과제 체크 칸.
-     항목은 반 공통에서 오므로 이름을 고치거나 지우면 여기도 같이 바뀐다. */
+     항목은 반 공통에서 오므로 이름을 고치거나 지우면 여기도 같이 바뀐다.
+
+     항목 한 줄:  [필수] 이름 · 월 화 수 목 금 · 3/5
+     필수/선택 표시는 그 묶음 첫 줄에만 붙인다. 이름을 누르면 월~금을
+     한꺼번에 켜고 끈다. */
   function fillHomework(el, s, e) {
     var host = el.querySelector('[data-role="hwchecks"]');
-    var rate = el.querySelector('[data-role="rate"]');
     if (!host) return;
 
     var common = commonOf((s && s.className) || '_');
     var items = Report.homeworkItems(common);
+    var hw = e.homework || {};
     host.textContent = '';
 
     if (!items.length) {
@@ -619,41 +622,82 @@
       hint.className = 'hw-empty';
       hint.textContent = '반 공통에 과제 이름을 넣어 주세요';
       host.appendChild(hint);
-      if (rate) rate.textContent = '';
       return;
     }
 
+    var first = true;
     ['required', 'optional'].forEach(function (g) {
       var list = items.filter(function (it) { return Report.groupOf(it) === g; });
       if (!list.length) return;
 
-      var tag = document.createElement('span');
-      tag.className = 'hw-tag hw-tag--' + g;
-      tag.textContent = g === 'required' ? '필수' : '선택';
-      host.appendChild(tag);
+      if (!first) host.appendChild(span('hwd-sep', ''));
+      first = false;
 
-      list.forEach(function (it) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'hw hw--item' + (e.homework && e.homework[it.key] ? ' is-on' : '');
-        b.dataset.act = 'hw';
-        b.dataset.key = it.key;
-        b.textContent = it.name;
-        host.appendChild(b);
+      list.forEach(function (it, i) {
+        var v = hw[it.key];
+        var itemOnly = v === true;
+
+        host.appendChild(i === 0
+          ? span('hw-tag hw-tag--' + g, g === 'required' ? '필수' : '선택')
+          : span('', ''));
+
+        var name = document.createElement('button');
+        name.type = 'button';
+        name.className = 'hwd-name' + (itemOnly ? ' is-itemonly' : '');
+        name.dataset.act = 'hwall';
+        name.dataset.key = it.key;
+        name.title = itemOnly
+          ? '했다고만 체크돼 있습니다. 한 요일을 다시 체크해 주세요'
+          : '누르면 월~금 한꺼번에 켜고 끕니다';
+        name.textContent = it.name;
+        if (itemOnly) name.appendChild(span('hwd-flag', '요일 다시 체크'));
+        host.appendChild(name);
+
+        var days = span('hwd-days', '');
+        Report.DAYS.forEach(function (day) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'hw' + (v && typeof v === 'object' && v[day] ? ' is-on' : '');
+          b.dataset.act = 'hwday';
+          b.dataset.key = it.key;
+          b.dataset.day = day;
+          b.textContent = day;
+          days.appendChild(b);
+        });
+        host.appendChild(days);
+
+        host.appendChild(span('hwd-n num', itemOnly ? '✓' : Report.daysDone(v) + '/5'));
       });
     });
 
-    if (rate) rate.textContent = homeworkRateText(common, e.homework);
+    var foot = span('hwd-foot', '');
+    var rate = span('rate-note num', homeworkRateText(common, hw));
+    rate.dataset.role = 'rate';
+    foot.appendChild(rate);
+    if (Report.itemOnlyKeys(common, hw).length) {
+      foot.appendChild(span('hwd-warn',
+        '요일을 다시 체크해 주세요 · 그 전까지 레포트는 예전 모양으로 나갑니다'));
+    } else {
+      foot.appendChild(span('hwd-hint', '이름을 누르면 월~금 한꺼번에'));
+    }
+    host.appendChild(foot);
   }
 
-  /* '필수 2/3 · 선택 1/2' — 카드에서 한눈에 보이게 */
+  function span(cls, text) {
+    var el = document.createElement('span');
+    if (cls) el.className = cls;
+    el.textContent = text;
+    return el;
+  }
+
+  /* '필수 12/15 (80%) · 선택 2/10 (20%)' — 레포트 게이지와 같은 함수로 센다 */
   function homeworkRateText(common, hw) {
     var parts = [];
     [['required', '필수'], ['optional', '선택']].forEach(function (p) {
-      var list = Report.homeworkItems(common, p[0]);
-      if (!list.length) return;
-      var done = list.filter(function (it) { return hw && hw[it.key]; }).length;
-      parts.push(p[1] + ' ' + done + '/' + list.length);
+      var c = Report.countOf(common, hw, p[0]);
+      if (!c) return;
+      parts.push(p[1] + ' ' + c.done + '/' + c.total +
+                 ' (' + Math.round(c.done / c.total * 100) + '%)');
     });
     return parts.join(' · ');
   }
@@ -771,14 +815,27 @@
       return;
     }
 
-    if (act === 'hw') {
+    /* 과제 — 요일 한 칸, 또는 이름을 눌러 월~금 한꺼번에.
+       '했다' 만 있던 항목(true)은 누르는 순간 요일 모양으로 바뀐다. */
+    if (act === 'hwday' || act === 'hwall') {
       var key = btn.dataset.key;
       if (!e.homework) e.homework = {};
-      e.homework[key] = !e.homework[key];
-      btn.classList.toggle('is-on', !!e.homework[key]);
+      var cur = e.homework[key];
+      var days = (cur && typeof cur === 'object') ? cur : {};
+
+      if (act === 'hwday') {
+        if (days[btn.dataset.day]) delete days[btn.dataset.day];
+        else days[btn.dataset.day] = true;
+      } else {
+        var all = cur !== true && Report.daysDone(days) === Report.DAYS.length;
+        days = {};
+        if (!all) Report.DAYS.forEach(function (d) { days[d] = true; });
+      }
+      e.homework[key] = days;
+
       var s2 = students().find(function (x) { return x.id === id; });
-      card.querySelector('[data-role="rate"]').textContent =
-        homeworkRateText(commonOf((s2 && s2.className) || '_'), e.homework);
+      fillHomework(card, s2, e);
+      fillBadge(card, id);
       afterChange(id);
       return;
     }

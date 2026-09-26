@@ -817,6 +817,51 @@ dialog.modal::backdrop { background: rgba(51, 58, 87, .38); backdrop-filter: blu
 .hw-tag + .hw-tag { margin-left: 4px; }
 .hw-empty { font-size: 12.5px; color: var(--ink-light); }
 
+/* ---- 과제 항목 × 요일 ----
+   항목마다 한 줄: [필수] 이름 · 월화수목금 · 3/5
+   표처럼 줄을 맞춰야 항목이 많아도 어지럽지 않다. */
+.hwd {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 34px;
+  align-items: center;
+  gap: 5px 8px;
+}
+.hwd > .hw-empty { grid-column: 1 / -1; padding-top: 7px; }
+.hwd .hw-tag { justify-self: start; padding: 2px 6px; }
+.hwd-name {
+  appearance: none; border: 0; background: none; font: inherit;
+  text-align: left; padding: 4px 0; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--ink-mid);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hwd-name:hover { color: var(--ink-deep); text-decoration: underline dotted; }
+.hwd-flag {
+  margin-left: 6px;
+  font-size: 11px; font-weight: 800;
+  padding: 1px 6px; border-radius: 999px;
+  background: #FFF6E8; color: #97701F;
+}
+.hwd-days { display: inline-flex; gap: 4px; }
+.hwd-days .hw { width: 32px; height: 32px; font-size: 12.5px; }
+.hwd-n { font-size: 12px; font-weight: 700; color: var(--ink-light); text-align: right; }
+.hwd-sep { grid-column: 1 / -1; height: 1px; background: var(--line); margin: 2px 0; opacity: .6; }
+.hwd-foot {
+  grid-column: 2 / -1;
+  display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+  padding-top: 2px;
+}
+.hwd-hint { font-size: 11.5px; color: var(--ink-light); margin-left: auto; }
+.hwd-warn { font-size: 11.5px; font-weight: 700; color: #97701F; margin-left: auto; }
+
+/* 좁은 화면: 요일 칸을 이름 아래로 */
+@media (max-width: 560px) {
+  .hwd { grid-template-columns: 34px minmax(0, 1fr) 34px; }
+  .hwd-days { grid-column: 2 / 3; }
+  .hwd-n { grid-column: 3 / 4; }
+}
+
 .fieldline--hw { align-items: flex-start; }
 .fieldline--hw .fieldline__label { padding-top: 7px; }
 

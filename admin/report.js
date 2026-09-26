@@ -212,7 +212,7 @@
                   Number(e.focusScore) > 0 ||
                   Object.keys(e.scores || {}).length > 0 ||
                   !!String(e.comment || '').trim() ||
-                  Object.keys(e.homework || {}).some(function (k) { return e.homework[k]; });
+                  homeworkTouched(e.homework);
 
     return {
       state: !missing.length ? 'done' : (touched ? 'partial' : 'none'),
@@ -232,12 +232,19 @@
   /* ============================================================
      과제
 
-     반 공통에 항목을 적고(이름), 학생마다 체크한다. 리뷰테스트와 같다.
+     반 공통에 항목을 적고(이름), 학생마다 항목별로 요일을 체크한다.
        반 공통  [{key:'h1', group:'required', name:'문학 주간지'}, …]
-       학생     {h1:true, h3:false}
+       학생     {h1:{월:true, 수:true}, h3:{}}
 
-     예전에는 월~금 요일 체크였다. 지난 주차 자료에는 그 모양이
-     그대로 남아 있으므로 읽을 줄 알아야 한다. (legacyDays)
+     제출률은 체크한 요일 칸 수로 센다.
+       필수과제 제출률 = 필수 항목들에서 체크한 칸 / (필수 항목 수 × 5)
+
+     학생 기록에는 세 모양이 섞여 있을 수 있다. 다 읽을 줄 알아야 한다.
+       요일(옛)     {월:true, 화:true}      9/19 주차까지. 항목 목록 없음
+       항목(어제)   {h1:true}               요일 없이 '했다' 만. (itemOnly)
+       항목+요일    {h1:{월:true}}          지금
+     '했다' 만 남은 항목이 하나라도 있으면 그 학생은 요일을 다시 체크할
+     때까지 어제 모양(항목 ✓ / 개수로 센 제출률)으로 나간다.
      ============================================================ */
 
   var DAYS = ['월', '화', '수', '목', '금'];
@@ -265,12 +272,53 @@
     return (it && it.group === 'optional') ? 'optional' : 'required';
   }
 
+  /* 한 항목에서 체크한 요일 수. '했다' 만 있는(true) 항목은 요일을 모르므로 0 */
+  function daysDone(v) {
+    if (!v || typeof v !== 'object') return 0;
+    return DAYS.filter(function (d) { return !!v[d]; }).length;
+  }
+
+  /* 한 항목을 했는가 — 어제 모양(true)도, 요일이 하나라도 있어도 '했다' */
+  function itemDone(v) {
+    return v === true || daysDone(v) > 0;
+  }
+
+  /* 요일 없이 '했다' 만 남은 항목들 (어제 모양으로 체크해 둔 것) */
+  function itemOnlyKeys(common, hw) {
+    return homeworkItems(common).filter(function (it) {
+      return hw && hw[it.key] === true;
+    }).map(function (it) { return it.key; });
+  }
+
+  /* 한 묶음의 칸 세기. 항목이 없으면 null.
+     '했다' 만 남은 항목이 있으면 어제처럼 항목 개수로 센다. */
+  function countOf(common, hw, group) {
+    var items = homeworkItems(common, group);
+    if (!items.length) return null;
+    if (itemOnlyKeys(common, hw).length) {
+      return {
+        done: items.filter(function (it) { return itemDone(hw && hw[it.key]); }).length,
+        total: items.length
+      };
+    }
+    var done = 0;
+    items.forEach(function (it) { done += daysDone(hw && hw[it.key]); });
+    return { done: done, total: items.length * DAYS.length };
+  }
+
   /* 한 묶음의 제출률. 항목이 없으면 -1 (화면에 안 그린다) */
   function rateOf(common, hw, group) {
-    var items = homeworkItems(common, group);
-    if (!items.length) return -1;
-    var done = items.filter(function (it) { return hw && hw[it.key]; }).length;
-    return Math.round(done / items.length * 100);
+    var c = countOf(common, hw, group);
+    if (!c) return -1;
+    return Math.round(c.done / c.total * 100);
+  }
+
+  /* 학생이 과제 칸을 하나라도 켰는가 (작성 여부 판단용) */
+  function homeworkTouched(hw) {
+    return Object.keys(hw || {}).some(function (k) {
+      var v = hw[k];
+      return v && typeof v === 'object' ? daysDone(v) > 0 : !!v;
+    });
   }
 
   /* 옛 요일 방식의 제출률 — 지난 주차를 다시 그릴 때만 쓴다 */
@@ -291,6 +339,11 @@
     homeworkItems: homeworkItems,
     groupOf: groupOf,
     rateOf: rateOf,
+    countOf: countOf,
+    DAYS: DAYS,
+    daysDone: daysDone,
+    itemDone: itemDone,
+    itemOnlyKeys: itemOnlyKeys,
     isLegacyHomework: isLegacyHomework,
     entryStatus: entryStatus,
     statusLabel: statusLabel,
